@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-jose[cryptography]==3.3.0
+bcrypt==4.2.1
+python-multipart==0.0.9
+ollama==0.4.4
+psutil==6.1.0
