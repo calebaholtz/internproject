@@ -31,7 +31,16 @@ export default function ChatMessage({ role, content }: Props) {
         {isUser ? (
           content
         ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              ul: ({ children }) => <ul className="list-disc list-outside pl-5 space-y-1 my-2">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal list-outside pl-5 space-y-1 my-2">{children}</ol>,
+              li: ({ children }) => <li className="text-gray-200">{children}</li>,
+              strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+            }}
+          >{content}</ReactMarkdown>
         )}
       </div>
     </div>
