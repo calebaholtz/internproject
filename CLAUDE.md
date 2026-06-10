@@ -25,6 +25,8 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM; admins can 
 - `llama3.2:latest` — general purpose, good balance of quality
 - `llama3.2:1b` — smaller version, good for simple questions
 - `phi3.5:latest` — Microsoft model, good for reasoning and structured answers
+- `tinyllama:latest` — very small, fast, lower quality
+- `gemma3:1b` — Google's latest small model, strong quality for its size
 
 ## Stack
 - **Backend**: Python 3.11+, FastAPI, ollama, psutil, python-jose, passlib, bcrypt

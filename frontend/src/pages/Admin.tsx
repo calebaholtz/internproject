@@ -178,6 +178,8 @@ export default function Admin() {
                         'llama3.2:latest': 'Good for general Q&A, summarization, and conversation',
                         'llama3.2:1b':     'Good for simple questions and short responses',
                         'phi3.5:latest':   'Good for reasoning, coding, and structured answers',
+                        'tinyllama:latest':'Very lightweight, best for quick simple replies',
+                        'gemma3:1b':       'Google — strong quality for its size, good all-rounder',
                       }
                       const desc = descriptions[m]
                       const label = m.replace(':latest', '')
