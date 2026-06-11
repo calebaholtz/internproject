@@ -180,6 +180,26 @@ export default function Chat() {
 
       <div className="flex flex-col flex-1 min-w-0">
 
+        {hasMessages && (
+          <div className="flex justify-end px-6 py-3 border-b border-white/[0.06]">
+            <button
+              onClick={async () => {
+                const token = localStorage.getItem('token')
+                await fetch('http://localhost:8000/chat/clear', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` },
+                })
+                setMessages([])
+                setTtft(null)
+                setTotalTime(null)
+              }}
+              className="text-xs text-gray-500 hover:text-white transition-colors"
+            >
+              New conversation
+            </button>
+          </div>
+        )}
+
         {!hasMessages ? (
           /* Centered empty state */
           <div className="flex flex-col flex-1 items-center justify-center px-6 gap-8">

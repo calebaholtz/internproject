@@ -25,6 +25,9 @@ app_config = {
     "guidance": "Answer questions accurately and concisely. If you don't know, say so.",
 }
 
+# Per-user conversation history
+conversation_histories: dict[str, list] = {}
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -60,26 +63,44 @@ def me(current_user: dict = Depends(get_current_user)):
 
 @app.post("/chat/message")
 def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_user)):
+    username = current_user["username"]
+    if username not in conversation_histories:
+        conversation_histories[username] = []
+
+    conversation_histories[username].append({"role": "user", "content": body.message})
+
     def generate():
+        full_response = []
         try:
+            messages = [{"role": "system", "content": app_config["guidance"]}] + conversation_histories[username]
             stream = ollama.chat(
                 model=app_config["model"],
-                messages=[
-                    {"role": "system", "content": app_config["guidance"]},
-                    {"role": "user", "content": body.message},
-                ],
+                messages=messages,
                 stream=True,
-                options={"num_ctx": 1024},
+                options={"num_ctx": 2048},
             )
             for chunk in stream:
                 content = chunk.message.content
                 if content:
+                    full_response.append(content)
                     yield f"data: {json.dumps({'content': content})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            if full_response:
+                conversation_histories[username].append({
+                    "role": "assistant",
+                    "content": "".join(full_response),
+                })
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.post("/chat/clear")
+def clear_history(current_user: dict = Depends(get_current_user)):
+    conversation_histories[current_user["username"]] = []
+    return {"status": "ok"}
 
 
 @app.get("/admin/documents")

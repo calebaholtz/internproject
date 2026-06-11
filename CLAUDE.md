@@ -6,6 +6,8 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM; admins can 
 ## What Is Built
 - **Auth**: JWT login, hardcoded users, role-based access (`user` / `admin`)
 - **Chat**: Fully wired to Ollama via streaming SSE — tokens appear as they're generated, typing indicator shows until first token arrives
+- **Conversation history**: Per-user message history stored in memory on the backend — full conversation sent to Ollama on each request so the model remembers previous messages. Restarting the backend clears all history.
+- **New conversation button**: Appears in chat header once a conversation starts — clears frontend messages and calls `POST /chat/clear` to reset server-side history
 - **Ollama integration**: `ollama` Python package, `stream=True`, model and guidance configurable at runtime via in-memory config
 - **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt — changes take effect immediately on the next chat message
 - **Admin models**: `/admin/models` queries Ollama for installed models; frontend dropdown shows real models with use-case descriptions, `:latest` stripped from display labels
@@ -93,6 +95,7 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 | GET | `/admin/config` | Admin | Working | Returns active model + guidance |
 | POST | `/admin/config` | Admin | Working | Updates active model + guidance |
 | GET | `/admin/models` | Admin | Working | Lists installed Ollama models |
+| POST | `/chat/clear` | Any | Working | Clears conversation history for current user |
 | GET | `/debug/stats` | Any | Working | Returns CPU%, RAM, active model (temp diagnostic) |
 
 ## Do not edit front end code without asking first
