@@ -25,7 +25,18 @@ export default function Admin() {
   const [saved, setSaved] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const [uploading, setUploading] = useState(false)
+
+  function fetchDocs() {
+    fetch('http://localhost:8000/admin/documents', { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((d) => setDocs(d.documents))
+      .catch(() => {})
+  }
+
   useEffect(() => {
+    fetchDocs()
+
     fetch('http://localhost:8000/admin/config', { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => { setModel(d.model); setGuidance(d.guidance) })
@@ -41,23 +52,37 @@ export default function Admin() {
     e.preventDefault()
     setDragging(false)
     const file = e.dataTransfer.files[0]
-    if (file?.name.endsWith('.pdf')) addDoc(file)
+    if (file?.name.endsWith('.pdf')) uploadDoc(file)
   }
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) addDoc(file)
+    if (file) uploadDoc(file)
   }
 
-  function addDoc(file: File) {
-    setDocs((prev) => [
-      { name: file.name, size: `${(file.size / 1024).toFixed(0)} KB`, uploaded: new Date().toISOString().split('T')[0] },
-      ...prev,
-    ])
+  async function uploadDoc(file: File) {
+    setUploading(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      await fetch('http://localhost:8000/admin/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: formData,
+      })
+      fetchDocs()
+    } catch {}
+    setUploading(false)
   }
 
-  function deleteDoc(name: string) {
-    setDocs((prev) => prev.filter((d) => d.name !== name))
+  async function deleteDoc(name: string) {
+    try {
+      await fetch(`http://localhost:8000/admin/documents/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      })
+      fetchDocs()
+    } catch {}
   }
 
   async function handleSaveConfig() {
@@ -106,8 +131,10 @@ export default function Admin() {
                 )}
               >
                 <Upload className="w-7 h-7 text-gray-600 mx-auto mb-3" />
-                <p className="text-sm font-medium text-gray-400">Drop a PDF here or click to browse</p>
-                <p className="text-xs text-gray-600 mt-1">PDF files only</p>
+                <p className="text-sm font-medium text-gray-400">
+                  {uploading ? 'Ingesting document...' : 'Drop a PDF here or click to browse'}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">{uploading ? 'This may take a moment' : 'PDF files only'}</p>
                 <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleFileInput} />
               </div>
 

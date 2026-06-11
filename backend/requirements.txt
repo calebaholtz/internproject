@@ -5,3 +5,5 @@ bcrypt==4.2.1
 python-multipart==0.0.9
 ollama==0.4.4
 psutil==6.1.0
+chromadb
+pypdf

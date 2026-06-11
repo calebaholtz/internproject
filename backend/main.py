@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -8,6 +8,9 @@ import ollama
 import config as cfg
 import json
 import psutil
+import os
+import ingest
+import rag
 
 app = FastAPI(title="DocBot API")
 
@@ -19,11 +22,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory config — persists for the lifetime of the server process
-app_config = {
+CONFIG_FILE = "app_config.json"
+_default_config = {
     "model": cfg.DEFAULT_MODEL,
     "guidance": "Answer questions accurately and concisely. If you don't know, say so.",
 }
+
+def _load_config() -> dict:
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return _default_config.copy()
+
+def _save_config():
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(app_config, f, indent=2)
+
+app_config = _load_config()
 
 # Per-user conversation history
 conversation_histories: dict[str, list] = {}
@@ -72,7 +90,18 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
     def generate():
         full_response = []
         try:
-            messages = [{"role": "system", "content": app_config["guidance"]}] + conversation_histories[username]
+            context = rag.retrieve(body.message)
+            if context:
+                system_message = (
+                    f"{app_config['guidance']}\n\n"
+                    "Use the following document excerpts to answer the question. "
+                    "If the answer is not in the documents, say so.\n\n"
+                    f"{context}"
+                )
+            else:
+                system_message = app_config["guidance"]
+
+            messages = [{"role": "system", "content": system_message}] + conversation_histories[username]
             stream = ollama.chat(
                 model=app_config["model"],
                 messages=messages,
@@ -105,14 +134,54 @@ def clear_history(current_user: dict = Depends(get_current_user)):
 
 @app.get("/admin/documents")
 def list_documents(current_user: dict = Depends(require_admin)):
-    return {"documents": []}
+    os.makedirs(cfg.KNOWLEDGE_FOLDER, exist_ok=True)
+    docs = []
+    for name in os.listdir(cfg.KNOWLEDGE_FOLDER):
+        if name.endswith(".pdf"):
+            path = os.path.join(cfg.KNOWLEDGE_FOLDER, name)
+            size_kb = os.path.getsize(path) // 1024
+            mtime = os.path.getmtime(path)
+            from datetime import datetime
+            uploaded = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+            docs.append({"name": name, "size": f"{size_kb} KB", "uploaded": uploaded})
+    return {"documents": docs}
+
+
+@app.post("/admin/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(require_admin),
+):
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    os.makedirs(cfg.KNOWLEDGE_FOLDER, exist_ok=True)
+    path = os.path.join(cfg.KNOWLEDGE_FOLDER, file.filename)
+    contents = await file.read()
+    with open(path, "wb") as f:
+        f.write(contents)
+    try:
+        ingest.ingest_file(path)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Ingestion error: {str(e)}")
+    return {"status": "ok", "filename": file.filename}
+
+
+@app.delete("/admin/documents/{name}")
+def delete_document(name: str, current_user: dict = Depends(require_admin)):
+    path = os.path.join(cfg.KNOWLEDGE_FOLDER, name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Document not found")
+    os.remove(path)
+    ingest.delete_file(name)
+    return {"status": "ok"}
 
 
 @app.get("/admin/models")
 def list_models(current_user: dict = Depends(require_admin)):
     try:
         models = ollama.list()
-        names = [m.model for m in models.models]
+        embedding_models = {"nomic-embed-text", "mxbai-embed-large", "all-minilm", "nomic-embed-text:latest"}
+        names = [m.model for m in models.models if m.model not in embedding_models]
         return {"models": names}
     except Exception:
         return {"models": []}
@@ -129,6 +198,7 @@ def update_config(body: ConfigUpdate, current_user: dict = Depends(require_admin
         app_config["model"] = body.model
     if body.guidance is not None:
         app_config["guidance"] = body.guidance
+    _save_config()
     return {"status": "ok"}
 
 

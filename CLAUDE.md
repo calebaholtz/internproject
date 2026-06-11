@@ -1,27 +1,29 @@
 # internproject
 
 ## What This Is
-A local web-based chatbot. Users log in and chat with an Ollama LLM; admins can configure the model and guidance prompt. The next major milestone is a RAG pipeline grounded in uploaded PDFs.
+A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in uploaded PDFs via RAG. Admins can upload documents and configure the model and guidance prompt.
 
 ## What Is Built
 - **Auth**: JWT login, hardcoded users, role-based access (`user` / `admin`)
 - **Chat**: Fully wired to Ollama via streaming SSE — tokens appear as they're generated, typing indicator shows until first token arrives
 - **Conversation history**: Per-user message history stored in memory on the backend — full conversation sent to Ollama on each request so the model remembers previous messages. Restarting the backend clears all history.
 - **New conversation button**: Appears in chat header once a conversation starts — clears frontend messages and calls `POST /chat/clear` to reset server-side history
-- **Ollama integration**: `ollama` Python package, `stream=True`, model and guidance configurable at runtime via in-memory config
-- **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt — changes take effect immediately on the next chat message
-- **Admin models**: `/admin/models` queries Ollama for installed models; frontend dropdown shows real models with use-case descriptions, `:latest` stripped from display labels
-- **Frontend chat**: Auto-resizing textarea, Enter to send, Shift+Enter for newline, Tab for 3-space indent, custom styled scrollbar, streaming message rendering
-- **Frontend admin**: Model dropdown and guidance prompt wired to backend; loads current config on mount, saves on button click
-- **Diagnostics panel**: Floating panel in bottom-right of chat screen showing active model, CPU%, RAM usage, time to first token, and total response time — polls `/debug/stats` every 2 seconds (temporary dev tool, not for production)
-- **Performance tuning**: Context window reduced to 1024 tokens (`num_ctx`) to lower RAM usage and reduce thinking delay
+- **RAG pipeline**: Built directly with `pypdf`, `chromadb`, and `nomic-embed-text` (no LlamaIndex). PDFs are chunked, embedded, and stored in ChromaDB. On each chat message the query is embedded and the top 5 most relevant chunks are retrieved and injected into the system prompt.
+- **PDF ingestion** (`ingest.py`): Reads PDFs with pypdf, splits into 512-word chunks with 50-word overlap, embeds with `nomic-embed-text` via Ollama, stores in ChromaDB
+- **RAG retrieval** (`rag.py`): Embeds the user query, queries ChromaDB for top K chunks, returns them formatted with source labels
+- **Document management**: Upload, list, and delete PDFs via the admin panel — all wired to the backend and ChromaDB
+- **Ollama integration**: `ollama` Python package, `stream=True`, model and guidance configurable at runtime
+- **Persisted config**: Active model and guidance saved to `app_config.json` on disk — survives backend restarts
+- **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt
+- **Admin models**: `/admin/models` queries Ollama for installed models; embedding models filtered out of dropdown
+- **Frontend chat**: Auto-resizing textarea, Enter to send, Shift+Enter for newline, Tab for 3-space indent, custom styled scrollbar, streaming message rendering, markdown rendering with bullet points
+- **Frontend admin**: Model dropdown and guidance prompt wired to backend; document list loads from disk on mount
+- **Diagnostics panel**: Floating panel in bottom-right of chat screen showing active model, CPU%, RAM usage, time to first token, and total response time — polls every 2 seconds (temporary dev tool)
+- **Performance tuning**: Context window set to 2048 tokens (`num_ctx`)
 
 ## What Is NOT Built Yet
-- `rag.py` — does not exist; no RAG pipeline
-- `ingest.py` — does not exist; no PDF ingestion or ChromaDB indexing
-- `/admin/documents` — returns empty list; not reading from disk
-- `/admin/upload` — not implemented; drag-and-drop in UI is local state only
-- `DELETE /admin/documents/{name}` — not implemented; delete button is local state only
+- User database — users are hardcoded in `users.py`
+- Conversation history does not persist across backend restarts
 
 ## Installed Ollama Models
 - `llama3.2:latest` — general purpose, good balance of quality
@@ -29,17 +31,21 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM; admins can 
 - `phi3.5:latest` — Microsoft model, good for reasoning and structured answers
 - `tinyllama:latest` — very small, fast, lower quality
 - `gemma3:1b` — Google's latest small model, strong quality for its size
+- `nomic-embed-text` — embedding model only, used by RAG pipeline (not a chat model)
 
 ## Stack
-- **Backend**: Python 3.11+, FastAPI, ollama, psutil, python-jose, passlib, bcrypt
+- **Backend**: Python 3.11+, FastAPI, ollama, chromadb, pypdf, psutil, python-jose, passlib, bcrypt
+- **Embeddings**: `nomic-embed-text` via Ollama (must be pulled before using RAG)
+- **Vector store**: ChromaDB (persistent, stored in `chroma_db/`)
 - **Frontend**: React 18, Vite, Tailwind CSS, Radix UI primitives, React Router, Lucide icons
-- **Not yet installed**: LlamaIndex, ChromaDB, pypdf
+- **Not used**: LlamaIndex — RAG pipeline built directly without it
 
 ## Project Layout
 ```
-backend/       FastAPI app — main.py, auth.py, users.py, config.py
+backend/       FastAPI app — main.py, auth.py, users.py, config.py, ingest.py, rag.py
 frontend/      React SPA — login, chat, admin panel
-knowledge/     Intended drop folder for PDFs (not yet used)
+knowledge/     PDF knowledge base — admin uploads land here
+chroma_db/     Auto-generated vector store (gitignored)
 ```
 
 ## Running Locally
@@ -68,7 +74,8 @@ Default credentials:
 ## Key Conventions
 - Users are hardcoded in `backend/users.py`; add a database before any real deployment
 - `/admin/*` routes enforce `require_admin` dependency server-side
-- Active model and guidance are stored in `app_config` dict in `main.py` — restarting the backend resets them to defaults from `config.py`
+- Active model and guidance are persisted to `backend/app_config.json` — loaded on startup, saved on every config update
+- `app_config.json` is gitignored so each environment starts from `config.py` defaults until first save
 - Chat uses SSE streaming — frontend reads `data: {"content": "..."}` chunks and appends to the message, terminated by `data: [DONE]`
 
 ## config.py Reference
@@ -89,9 +96,9 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 | POST | `/auth/login` | None | Working | Returns JWT token |
 | GET | `/auth/me` | Any | Working | Current user + role |
 | POST | `/chat/message` | Any | Working | Streams Ollama response via SSE |
-| GET | `/admin/documents` | Admin | Stub | Returns empty list |
-| POST | `/admin/upload` | Admin | Not implemented | — |
-| DELETE | `/admin/documents/{name}` | Admin | Not implemented | — |
+| GET | `/admin/documents` | Admin | Working | Lists PDFs from knowledge folder |
+| POST | `/admin/upload` | Admin | Working | Saves PDF, runs ingestion into ChromaDB |
+| DELETE | `/admin/documents/{name}` | Admin | Working | Deletes PDF and removes from ChromaDB |
 | GET | `/admin/config` | Admin | Working | Returns active model + guidance |
 | POST | `/admin/config` | Admin | Working | Updates active model + guidance |
 | GET | `/admin/models` | Admin | Working | Lists installed Ollama models |

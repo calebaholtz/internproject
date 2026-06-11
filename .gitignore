@@ -17,6 +17,9 @@ node_modules/
 dist/
 .vite/
 
+# Runtime config state
+backend/app_config.json
+
 # OS
 .DS_Store
 Thumbs.db
