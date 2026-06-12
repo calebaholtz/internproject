@@ -100,6 +100,10 @@ export default function Chat() {
           if (data === '[DONE]') break
           try {
             const parsed = JSON.parse(data)
+            if (parsed.error) {
+              setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: `Error: ${parsed.error}` }])
+              started = true
+            }
             if (parsed.content) {
               if (!started) {
                 started = true
