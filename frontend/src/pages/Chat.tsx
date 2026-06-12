@@ -38,7 +38,7 @@ export default function Chat() {
   useEffect(() => {
     const token = localStorage.getItem('token')
     function fetchStats() {
-      fetch('${API_URL}/debug/stats', {
+      fetch(`${API_URL}/debug/stats`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
         .then((r) => r.json())
@@ -73,7 +73,7 @@ export default function Chat() {
 
     try {
       const token = localStorage.getItem('token')
-      const res = await fetch('${API_URL}/chat/message', {
+      const res = await fetch(`${API_URL}/chat/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -186,7 +186,7 @@ export default function Chat() {
             <button
               onClick={async () => {
                 const token = localStorage.getItem('token')
-                await fetch('${API_URL}/chat/clear', {
+                await fetch(`${API_URL}/chat/clear`, {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${token}` },
                 })

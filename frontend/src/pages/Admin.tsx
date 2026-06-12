@@ -29,7 +29,7 @@ export default function Admin() {
   const [uploading, setUploading] = useState(false)
 
   function fetchDocs() {
-    fetch('${API_URL}/admin/documents', { headers: authHeaders() })
+    fetch(`${API_URL}/admin/documents`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => setDocs(d.documents))
       .catch(() => {})
@@ -38,12 +38,12 @@ export default function Admin() {
   useEffect(() => {
     fetchDocs()
 
-    fetch('${API_URL}/admin/config', { headers: authHeaders() })
+    fetch(`${API_URL}/admin/config`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => { setModel(d.model); setGuidance(d.guidance) })
       .catch(() => {})
 
-    fetch('${API_URL}/admin/models', { headers: authHeaders() })
+    fetch(`${API_URL}/admin/models`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => setModels(d.models))
       .catch(() => {})
@@ -66,7 +66,7 @@ export default function Admin() {
     const formData = new FormData()
     formData.append('file', file)
     try {
-      await fetch('${API_URL}/admin/upload', {
+      await fetch(`${API_URL}/admin/upload`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: formData,
@@ -88,7 +88,7 @@ export default function Admin() {
 
   async function handleSaveConfig() {
     try {
-      await fetch('${API_URL}/admin/config', {
+      await fetch(`${API_URL}/admin/config`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ model, guidance }),
@@ -201,7 +201,7 @@ export default function Admin() {
                     onChange={async (e) => {
                       const newModel = e.target.value
                       setModel(newModel)
-                      await fetch('${API_URL}/admin/config', {
+                      await fetch(`${API_URL}/admin/config`, {
                         method: 'POST',
                         headers: authHeaders(),
                         body: JSON.stringify({ model: newModel }),
