@@ -17,19 +17,31 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt
 - **Admin models**: `/admin/models` queries Ollama for installed models; embedding models filtered out of dropdown
 - **Frontend chat**: Auto-resizing textarea, Enter to send, Shift+Enter for newline, Tab for 3-space indent, custom styled scrollbar, streaming message rendering, markdown rendering with bullet points
-- **Frontend admin**: Model dropdown and guidance prompt wired to backend; document list loads from disk on mount
+- **Frontend admin**: Model dropdown and guidance prompt wired to backend; document list loads from disk on mount; model dropdown auto-saves immediately on change
+- **Sidebar document list**: Pulls real document list from backend, refreshes on navigation, shows "No documents uploaded" when empty
+- **Stream error display**: Errors from the backend stream are now shown in the chat bubble instead of silently disappearing
+- **Dynamic API URL**: Frontend uses `window.location.hostname` to build the API URL — works on both localhost and EC2 without code changes
 - **Diagnostics panel**: Floating panel in bottom-right of chat screen showing active model, CPU%, RAM usage, time to first token, and total response time — polls every 2 seconds (temporary dev tool)
 - **Performance tuning**: Context window set to 2048 tokens (`num_ctx`)
+- **CORS**: Set to allow all origins (`*`) for EC2 compatibility — tighten before any real deployment
 
 ## What Is NOT Built Yet
 - User database — users are hardcoded in `users.py`
 - Conversation history does not persist across backend restarts
 
 ## Installed Ollama Models
+### Laptop
 - `llama3.2:latest` — general purpose, good balance of quality
 - `llama3.2:1b` — smaller version, good for simple questions
 - `gemma3:1b` — Google's latest small model, strong quality for its size
 - `nomic-embed-text` — embedding model only, used by RAG pipeline (not a chat model)
+
+### EC2
+- `gemma4:latest` — Google's latest model, high quality, 9.6GB
+- `nomic-embed-text` — embedding model, required for RAG pipeline
+
+### Important
+- `nomic-embed-text` must be pulled on every machine before RAG works — every chat message runs through it even with no documents uploaded
 
 ## Stack
 - **Backend**: Python 3.11+, FastAPI, ollama, chromadb, pypdf, psutil, python-jose, passlib, bcrypt
