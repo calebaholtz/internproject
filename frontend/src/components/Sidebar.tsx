@@ -1,14 +1,25 @@
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { MessageSquare, Shield, LogOut, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-
-const MOCK_DOCS = ['company-policy.pdf', 'onboarding-guide.pdf', 'cve-2024-1234.pdf']
+import { API_URL } from '@/lib/api'
 
 export default function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const role = localStorage.getItem('role')
+  const [docs, setDocs] = useState<string[]>([])
+
+  useEffect(() => {
+    if (role !== 'admin') return
+    fetch(`${API_URL}/admin/documents`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setDocs(d.documents.map((doc: { name: string }) => doc.name)))
+      .catch(() => {})
+  }, [location.pathname])
 
   function handleLogout() {
     localStorage.removeItem('token')
@@ -56,7 +67,10 @@ export default function Sidebar() {
       <div className="mt-4 border-t border-gray-700 pt-4">
         <p className="text-xs text-gray-500 mb-2 px-3">Knowledge Base</p>
         <div className="flex flex-col gap-1">
-          {MOCK_DOCS.map((doc) => (
+          {docs.length === 0 && (
+            <p className="text-xs text-gray-600 px-3">No documents uploaded</p>
+          )}
+          {docs.map((doc) => (
             <div key={doc} className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 rounded">
               <FileText className="w-3 h-3 shrink-0" />
               <span className="truncate">{doc}</span>
