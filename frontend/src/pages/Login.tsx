@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { API_URL } from '@/lib/api'
 
 const WAVES = [
   { color: [99,  102, 241], alpha: 0.45, speed: 0.4,  amplitude: 90,  frequency: 0.007, yRatio: 0.55 },
@@ -84,7 +85,7 @@ export default function Login() {
       params.append('username', username)
       params.append('password', password)
 
-      const { data } = await axios.post('http://localhost:8000/auth/login', params)
+      const { data } = await axios.post(`${API_URL}/auth/login`, params)
       localStorage.setItem('token', data.access_token)
       localStorage.setItem('role', data.role)
       navigate('/chat')

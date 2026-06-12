@@ -28,8 +28,6 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 ## Installed Ollama Models
 - `llama3.2:latest` — general purpose, good balance of quality
 - `llama3.2:1b` — smaller version, good for simple questions
-- `phi3.5:latest` — Microsoft model, good for reasoning and structured answers
-- `tinyllama:latest` — very small, fast, lower quality
 - `gemma3:1b` — Google's latest small model, strong quality for its size
 - `nomic-embed-text` — embedding model only, used by RAG pipeline (not a chat model)
 

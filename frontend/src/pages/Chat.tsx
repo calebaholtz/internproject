@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import ChatMessage from '@/components/ChatMessage'
+import { API_URL } from '@/lib/api'
 
 interface Message {
   id: number
@@ -37,7 +38,7 @@ export default function Chat() {
   useEffect(() => {
     const token = localStorage.getItem('token')
     function fetchStats() {
-      fetch('http://localhost:8000/debug/stats', {
+      fetch('${API_URL}/debug/stats', {
         headers: { 'Authorization': `Bearer ${token}` },
       })
         .then((r) => r.json())
@@ -72,7 +73,7 @@ export default function Chat() {
 
     try {
       const token = localStorage.getItem('token')
-      const res = await fetch('http://localhost:8000/chat/message', {
+      const res = await fetch('${API_URL}/chat/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -185,7 +186,7 @@ export default function Chat() {
             <button
               onClick={async () => {
                 const token = localStorage.getItem('token')
-                await fetch('http://localhost:8000/chat/clear', {
+                await fetch('${API_URL}/chat/clear', {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${token}` },
                 })

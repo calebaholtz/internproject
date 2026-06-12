@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Upload, Trash2, FileText, ChevronDown } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import { cn } from '@/lib/utils'
+import { API_URL } from '@/lib/api'
 
 interface Doc {
   name: string
@@ -28,7 +29,7 @@ export default function Admin() {
   const [uploading, setUploading] = useState(false)
 
   function fetchDocs() {
-    fetch('http://localhost:8000/admin/documents', { headers: authHeaders() })
+    fetch('${API_URL}/admin/documents', { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => setDocs(d.documents))
       .catch(() => {})
@@ -37,12 +38,12 @@ export default function Admin() {
   useEffect(() => {
     fetchDocs()
 
-    fetch('http://localhost:8000/admin/config', { headers: authHeaders() })
+    fetch('${API_URL}/admin/config', { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => { setModel(d.model); setGuidance(d.guidance) })
       .catch(() => {})
 
-    fetch('http://localhost:8000/admin/models', { headers: authHeaders() })
+    fetch('${API_URL}/admin/models', { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => setModels(d.models))
       .catch(() => {})
@@ -65,7 +66,7 @@ export default function Admin() {
     const formData = new FormData()
     formData.append('file', file)
     try {
-      await fetch('http://localhost:8000/admin/upload', {
+      await fetch('${API_URL}/admin/upload', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: formData,
@@ -77,7 +78,7 @@ export default function Admin() {
 
   async function deleteDoc(name: string) {
     try {
-      await fetch(`http://localhost:8000/admin/documents/${encodeURIComponent(name)}`, {
+      await fetch(`${API_URL}/admin/documents/${encodeURIComponent(name)}`, {
         method: 'DELETE',
         headers: authHeaders(),
       })
@@ -87,7 +88,7 @@ export default function Admin() {
 
   async function handleSaveConfig() {
     try {
-      await fetch('http://localhost:8000/admin/config', {
+      await fetch('${API_URL}/admin/config', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ model, guidance }),
@@ -197,15 +198,21 @@ export default function Admin() {
                 <div className="relative">
                   <select
                     value={model}
-                    onChange={(e) => setModel(e.target.value)}
+                    onChange={async (e) => {
+                      const newModel = e.target.value
+                      setModel(newModel)
+                      await fetch('${API_URL}/admin/config', {
+                        method: 'POST',
+                        headers: authHeaders(),
+                        body: JSON.stringify({ model: newModel }),
+                      }).catch(() => {})
+                    }}
                     className="w-full h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white appearance-none focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
                     {models.map((m) => {
                       const descriptions: Record<string, string> = {
                         'llama3.2:latest': 'Good for general Q&A, summarization, and conversation',
                         'llama3.2:1b':     'Good for simple questions and short responses',
-                        'phi3.5:latest':   'Good for reasoning, coding, and structured answers',
-                        'tinyllama:latest':'Very lightweight, best for quick simple replies',
                         'gemma3:1b':       'Google — strong quality for its size, good all-rounder',
                       }
                       const desc = descriptions[m]
