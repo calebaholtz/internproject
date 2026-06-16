@@ -22,7 +22,9 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - **Stream error display**: Errors from the backend stream are now shown in the chat bubble instead of silently disappearing
 - **Dynamic API URL**: Frontend uses `window.location.hostname` to build the API URL — works on both localhost and EC2 without code changes
 - **Diagnostics panel**: Floating panel in bottom-right of chat screen showing active model, CPU%, RAM usage, time to first token, and total response time — polls every 2 seconds (temporary dev tool)
-- **Performance tuning**: Context window set to 2048 tokens (`num_ctx`)
+- **Performance tuning**: Context window set to 2048 tokens (`num_ctx`); `keep_alive=-1` on all Ollama calls keeps the model permanently loaded in VRAM — never unloads between requests
+- **Model warmup**: On backend startup, a silent dummy request is sent to Ollama to preload the model into VRAM so the first real user message has no cold start delay
+- **Benchmark**: `POST /debug/benchmark` runs 3 RAG-grounded test prompts and records response time, peak CPU, avg CPU, peak RAM, and avg RAM per prompt — accessible via Run Benchmark button in the diagnostics panel
 - **CORS**: Set to allow all origins (`*`) for EC2 compatibility — tighten before any real deployment
 
 ## What Is NOT Built Yet
@@ -36,8 +38,8 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - `gemma3:1b` — Google's latest small model, strong quality for its size
 - `nomic-embed-text` — embedding model only, used by RAG pipeline (not a chat model)
 
-### EC2
-- `gemma4:latest` — Google's latest model, high quality, 9.6GB
+### EC2 (g4dn.xlarge — NVIDIA T4 GPU, 16GB VRAM)
+- `gemma4:latest` — Google's latest model, high quality, 9.6GB — runs fully on GPU
 - `nomic-embed-text` — embedding model, required for RAG pipeline
 
 ### Important
@@ -114,5 +116,6 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 | GET | `/admin/models` | Admin | Working | Lists installed Ollama models |
 | POST | `/chat/clear` | Any | Working | Clears conversation history for current user |
 | GET | `/debug/stats` | Any | Working | Returns CPU%, RAM, active model (temp diagnostic) |
+| POST | `/debug/benchmark` | Any | Working | Runs 3 RAG prompts, returns timing and resource usage per prompt |
 
 ## Do not edit front end code without asking first
