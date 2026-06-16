@@ -18,6 +18,21 @@ interface Stats {
   active_model: string
 }
 
+interface BenchmarkResult {
+  label: string
+  prompt: string
+  ttft_s: number | null
+  total_s: number | null
+  response_preview: string | null
+  error: string | null
+}
+
+interface BenchmarkData {
+  model: string
+  ram_percent: number
+  results: BenchmarkResult[]
+}
+
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -26,6 +41,8 @@ export default function Chat() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [ttft, setTtft] = useState<number | null>(null)
   const [totalTime, setTotalTime] = useState<number | null>(null)
+  const [benchmarking, setBenchmarking] = useState(false)
+  const [benchmark, setBenchmark] = useState<BenchmarkData | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -173,13 +190,54 @@ export default function Chat() {
       <Sidebar />
 
       {stats && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-white/10 bg-black/70 backdrop-blur-md px-4 py-3 text-xs text-gray-400 space-y-1 font-mono min-w-[220px]">
+        <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-white/10 bg-black/70 backdrop-blur-md px-4 py-3 text-xs text-gray-400 space-y-1 font-mono min-w-[260px] max-w-[360px]">
           <div className="text-gray-500 text-[10px] uppercase tracking-wider mb-2">Diagnostics</div>
           <div className="flex justify-between"><span>Model</span><span className="text-white">{stats.active_model.replace(':latest', '')}</span></div>
           <div className="flex justify-between"><span>CPU</span><span className="text-white">{stats.cpu_percent}%</span></div>
           <div className="flex justify-between"><span>RAM</span><span className="text-white">{stats.ram_used_gb} / {stats.ram_total_gb} GB ({stats.ram_percent}%)</span></div>
           {ttft !== null && <div className="flex justify-between"><span>First token</span><span className="text-white">{ttft}s</span></div>}
           {totalTime !== null && <div className="flex justify-between"><span>Total time</span><span className="text-white">{totalTime}s</span></div>}
+
+          <button
+            onClick={async () => {
+              setBenchmarking(true)
+              setBenchmark(null)
+              const token = localStorage.getItem('token')
+              try {
+                const res = await fetch(`${API_URL}/debug/benchmark`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` },
+                })
+                const data = await res.json()
+                setBenchmark(data)
+              } catch {}
+              setBenchmarking(false)
+            }}
+            disabled={benchmarking}
+            className="mt-2 w-full py-1 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 transition-colors disabled:opacity-50 text-[11px]"
+          >
+            {benchmarking ? 'Running benchmark...' : 'Run Benchmark'}
+          </button>
+
+          {benchmark && (
+            <div className="mt-2 space-y-2 border-t border-white/10 pt-2">
+              <div className="text-gray-500 text-[10px] uppercase tracking-wider">Results — {benchmark.model.replace(':latest', '')}</div>
+              {benchmark.results.map((r) => (
+                <div key={r.label} className="space-y-0.5">
+                  <div className="text-gray-300 text-[11px] font-semibold">{r.label}</div>
+                  {r.error ? (
+                    <div className="text-red-400 text-[10px]">{r.error}</div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between"><span>First token</span><span className="text-white">{r.ttft_s}s</span></div>
+                      <div className="flex justify-between"><span>Total</span><span className="text-white">{r.total_s}s</span></div>
+                      <div className="text-gray-600 text-[10px] truncate">{r.response_preview}</div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -9,6 +9,7 @@ import config as cfg
 import json
 import psutil
 import os
+import time
 import ingest
 import rag
 
@@ -211,4 +212,56 @@ def debug_stats(current_user: dict = Depends(get_current_user)):
         "ram_total_gb": round(ram.total / 1024 ** 3, 1),
         "ram_percent": ram.percent,
         "active_model": app_config["model"],
+    }
+
+
+BENCHMARK_PROMPTS = [
+    {"label": "Short factual", "prompt": "What is the capital of France?"},
+    {"label": "Reasoning",     "prompt": "Explain in 2 sentences how a RAG pipeline works."},
+    {"label": "List",          "prompt": "List 3 programming languages in bullet points."},
+]
+
+@app.post("/debug/benchmark")
+def run_benchmark(current_user: dict = Depends(get_current_user)):
+    results = []
+    for item in BENCHMARK_PROMPTS:
+        try:
+            ttft = None
+            start = time.time()
+            stream = ollama.chat(
+                model=app_config["model"],
+                messages=[{"role": "user", "content": item["prompt"]}],
+                stream=True,
+                options={"num_ctx": 2048},
+            )
+            response_text = ""
+            for chunk in stream:
+                if ttft is None:
+                    ttft = round(time.time() - start, 2)
+                content = chunk.message.content
+                if content:
+                    response_text += content
+            total = round(time.time() - start, 2)
+            results.append({
+                "label": item["label"],
+                "prompt": item["prompt"],
+                "ttft_s": ttft,
+                "total_s": total,
+                "response_preview": response_text[:120].strip(),
+                "error": None,
+            })
+        except Exception as e:
+            results.append({
+                "label": item["label"],
+                "prompt": item["prompt"],
+                "ttft_s": None,
+                "total_s": None,
+                "response_preview": None,
+                "error": str(e),
+            })
+    ram = psutil.virtual_memory()
+    return {
+        "model": app_config["model"],
+        "ram_percent": ram.percent,
+        "results": results,
     }
