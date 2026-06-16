@@ -271,6 +271,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
             peak_cpu = round(max((s["cpu"] for s in samples), default=0), 1)
             avg_cpu  = round(sum(s["cpu"] for s in samples) / len(samples), 1) if samples else 0
             peak_ram = round(max((s["ram"] for s in samples), default=0), 1)
+            avg_ram  = round(sum(s["ram"] for s in samples) / len(samples), 1) if samples else 0
 
             results.append({
                 "label": item["label"],
@@ -279,6 +280,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                 "peak_cpu": peak_cpu,
                 "avg_cpu": avg_cpu,
                 "peak_ram": peak_ram,
+                "avg_ram": avg_ram,
                 "response_preview": response_text[:150].strip(),
                 "error": None,
             })
@@ -290,6 +292,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                 "peak_cpu": None,
                 "avg_cpu": None,
                 "peak_ram": None,
+                "avg_ram": None,
                 "response_preview": None,
                 "error": str(e),
             })
