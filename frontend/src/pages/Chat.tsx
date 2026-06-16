@@ -21,8 +21,10 @@ interface Stats {
 interface BenchmarkResult {
   label: string
   prompt: string
-  ttft_s: number | null
   total_s: number | null
+  peak_cpu: number | null
+  avg_cpu: number | null
+  peak_ram: number | null
   response_preview: string | null
   error: string | null
 }
@@ -229,6 +231,9 @@ export default function Chat() {
                   ) : (
                     <>
                       <div className="flex justify-between"><span>Response time</span><span className="text-white">{r.total_s}s</span></div>
+                      <div className="flex justify-between"><span>Peak CPU</span><span className="text-white">{r.peak_cpu}%</span></div>
+                      <div className="flex justify-between"><span>Avg CPU</span><span className="text-white">{r.avg_cpu}%</span></div>
+                      <div className="flex justify-between"><span>Peak RAM</span><span className="text-white">{r.peak_ram}%</span></div>
                       <div className="text-gray-600 text-[10px] truncate">{r.response_preview}</div>
                     </>
                   )}

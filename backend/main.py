@@ -10,6 +10,7 @@ import json
 import psutil
 import os
 import time
+import threading
 import ingest
 import rag
 
@@ -227,15 +228,25 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
     for item in BENCHMARK_PROMPTS:
         try:
             context = rag.retrieve(item["prompt"])
-            if context:
-                system_message = (
-                    f"{app_config['guidance']}\n\n"
-                    "Use the following document excerpts to answer the question. "
-                    "If the answer is not in the documents, say so.\n\n"
-                    f"{context}"
-                )
-            else:
-                system_message = app_config["guidance"]
+            system_message = (
+                f"{app_config['guidance']}\n\nUse the following document excerpts to answer the question. "
+                f"If the answer is not in the documents, say so.\n\n{context}"
+            ) if context else app_config["guidance"]
+
+            # Background sampler
+            samples = []
+            stop_event = threading.Event()
+
+            def _sample():
+                psutil.cpu_percent(interval=None)
+                while not stop_event.is_set():
+                    samples.append({
+                        "cpu": psutil.cpu_percent(interval=0.5),
+                        "ram": psutil.virtual_memory().percent,
+                    })
+
+            sampler = threading.Thread(target=_sample, daemon=True)
+            sampler.start()
 
             start = time.time()
             stream = ollama.chat(
@@ -253,10 +264,21 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                 if content:
                     response_text += content
             total = round(time.time() - start, 2)
+
+            stop_event.set()
+            sampler.join()
+
+            peak_cpu = round(max((s["cpu"] for s in samples), default=0), 1)
+            avg_cpu  = round(sum(s["cpu"] for s in samples) / len(samples), 1) if samples else 0
+            peak_ram = round(max((s["ram"] for s in samples), default=0), 1)
+
             results.append({
                 "label": item["label"],
                 "prompt": item["prompt"],
                 "total_s": total,
+                "peak_cpu": peak_cpu,
+                "avg_cpu": avg_cpu,
+                "peak_ram": peak_ram,
                 "response_preview": response_text[:150].strip(),
                 "error": None,
             })
@@ -265,12 +287,13 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                 "label": item["label"],
                 "prompt": item["prompt"],
                 "total_s": None,
+                "peak_cpu": None,
+                "avg_cpu": None,
+                "peak_ram": None,
                 "response_preview": None,
                 "error": str(e),
             })
-    ram = psutil.virtual_memory()
     return {
         "model": app_config["model"],
-        "ram_percent": ram.percent,
         "results": results,
     }
