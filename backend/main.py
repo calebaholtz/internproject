@@ -24,6 +24,7 @@ def warmup():
             model=_load_config().get("model", cfg.DEFAULT_MODEL),
             messages=[{"role": "user", "content": "hi"}],
             options={"num_predict": 1},
+            keep_alive=-1,
         )
     except Exception:
         pass
@@ -122,6 +123,7 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
                 messages=messages,
                 stream=True,
                 options={"num_ctx": 2048},
+                keep_alive=-1,
             )
             for chunk in stream:
                 content = chunk.message.content
@@ -270,6 +272,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                 ],
                 stream=True,
                 options={"num_ctx": 2048},
+                keep_alive=-1,
             )
             response_text = ""
             for chunk in stream:
