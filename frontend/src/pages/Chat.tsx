@@ -195,8 +195,7 @@ export default function Chat() {
           <div className="flex justify-between"><span>Model</span><span className="text-white">{stats.active_model.replace(':latest', '')}</span></div>
           <div className="flex justify-between"><span>CPU</span><span className="text-white">{stats.cpu_percent}%</span></div>
           <div className="flex justify-between"><span>RAM</span><span className="text-white">{stats.ram_used_gb} / {stats.ram_total_gb} GB ({stats.ram_percent}%)</span></div>
-          {ttft !== null && <div className="flex justify-between"><span>First token</span><span className="text-white">{ttft}s</span></div>}
-          {totalTime !== null && <div className="flex justify-between"><span>Total time</span><span className="text-white">{totalTime}s</span></div>}
+          {totalTime !== null && <div className="flex justify-between"><span>Response time</span><span className="text-white">{totalTime}s</span></div>}
 
           <button
             onClick={async () => {
@@ -229,8 +228,7 @@ export default function Chat() {
                     <div className="text-red-400 text-[10px]">{r.error}</div>
                   ) : (
                     <>
-                      <div className="flex justify-between"><span>First token</span><span className="text-white">{r.ttft_s}s</span></div>
-                      <div className="flex justify-between"><span>Total</span><span className="text-white">{r.total_s}s</span></div>
+                      <div className="flex justify-between"><span>Response time</span><span className="text-white">{r.total_s}s</span></div>
                       <div className="text-gray-600 text-[10px] truncate">{r.response_preview}</div>
                     </>
                   )}

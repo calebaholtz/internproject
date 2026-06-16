@@ -216,9 +216,9 @@ def debug_stats(current_user: dict = Depends(get_current_user)):
 
 
 BENCHMARK_PROMPTS = [
-    {"label": "Short factual", "prompt": "What is the capital of France?"},
-    {"label": "Reasoning",     "prompt": "Explain in 2 sentences how a RAG pipeline works."},
-    {"label": "List",          "prompt": "List 3 programming languages in bullet points."},
+    {"label": "Summary",      "prompt": "Summarize the main topics covered in the uploaded documents."},
+    {"label": "Key details",  "prompt": "What are the most important details from the documents?"},
+    {"label": "Specifics",    "prompt": "List the key findings or items mentioned in the documents as bullet points."},
 ]
 
 @app.post("/debug/benchmark")
@@ -226,18 +226,29 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
     results = []
     for item in BENCHMARK_PROMPTS:
         try:
-            ttft = None
+            context = rag.retrieve(item["prompt"])
+            if context:
+                system_message = (
+                    f"{app_config['guidance']}\n\n"
+                    "Use the following document excerpts to answer the question. "
+                    "If the answer is not in the documents, say so.\n\n"
+                    f"{context}"
+                )
+            else:
+                system_message = app_config["guidance"]
+
             start = time.time()
             stream = ollama.chat(
                 model=app_config["model"],
-                messages=[{"role": "user", "content": item["prompt"]}],
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user",   "content": item["prompt"]},
+                ],
                 stream=True,
                 options={"num_ctx": 2048},
             )
             response_text = ""
             for chunk in stream:
-                if ttft is None:
-                    ttft = round(time.time() - start, 2)
                 content = chunk.message.content
                 if content:
                     response_text += content
@@ -245,16 +256,14 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
             results.append({
                 "label": item["label"],
                 "prompt": item["prompt"],
-                "ttft_s": ttft,
                 "total_s": total,
-                "response_preview": response_text[:120].strip(),
+                "response_preview": response_text[:150].strip(),
                 "error": None,
             })
         except Exception as e:
             results.append({
                 "label": item["label"],
                 "prompt": item["prompt"],
-                "ttft_s": None,
                 "total_s": None,
                 "response_preview": None,
                 "error": str(e),
