@@ -16,6 +16,19 @@ import rag
 
 app = FastAPI(title="DocBot API")
 
+
+@app.on_event("startup")
+def warmup():
+    try:
+        ollama.chat(
+            model=_load_config().get("model", cfg.DEFAULT_MODEL),
+            messages=[{"role": "user", "content": "hi"}],
+            options={"num_predict": 1},
+        )
+    except Exception:
+        pass
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
