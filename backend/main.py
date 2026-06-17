@@ -117,12 +117,13 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
             else:
                 system_message = app_config["guidance"]
 
-            messages = [{"role": "system", "content": system_message}] + conversation_histories[username]
+            recent_history = conversation_histories[username][-cfg.MAX_HISTORY:]
+            messages = [{"role": "system", "content": system_message}] + recent_history
             stream = ollama.chat(
                 model=app_config["model"],
                 messages=messages,
                 stream=True,
-                options={"num_ctx": 2048},
+                options={"num_ctx": cfg.NUM_CTX, "num_predict": cfg.NUM_PREDICT},
                 keep_alive=-1,
             )
             for chunk in stream:
@@ -271,7 +272,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                     {"role": "user",   "content": item["prompt"]},
                 ],
                 stream=True,
-                options={"num_ctx": 2048},
+                options={"num_ctx": cfg.NUM_CTX, "num_predict": cfg.NUM_PREDICT},
                 keep_alive=-1,
             )
             response_text = ""
