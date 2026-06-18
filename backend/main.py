@@ -150,7 +150,7 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
                     for text in stream.text_stream:
                         full_response.append(text)
                         yield f"data: {json.dumps({'content': text})}\n\n"
-                    usage = stream.get_final_usage()
+                    usage = stream.get_final_message().usage
                     pricing = CLAUDE_PRICING.get(model, {"input": 0, "output": 0})
                     cost = (usage.input_tokens * pricing["input"] + usage.output_tokens * pricing["output"]) / 1_000_000
                     yield f"data: {json.dumps({'cost': round(cost, 8), 'input_tokens': usage.input_tokens, 'output_tokens': usage.output_tokens})}\n\n"
