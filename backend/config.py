@@ -1,3 +1,9 @@
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
 KNOWLEDGE_FOLDER = "./knowledge"
 DEFAULT_MODEL = "llama3.2"
 EMBEDDING_MODEL = "nomic-embed-text"

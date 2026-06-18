@@ -7,3 +7,5 @@ ollama==0.4.4
 psutil==6.1.0
 chromadb
 pypdf
+anthropic
+python-dotenv

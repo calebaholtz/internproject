@@ -211,9 +211,12 @@ export default function Admin() {
                   >
                     {models.map((m) => {
                       const descriptions: Record<string, string> = {
-                        'llama3.2:latest': 'Good for general Q&A, summarization, and conversation',
-                        'llama3.2:1b':     'Good for simple questions and short responses',
-                        'gemma3:1b':       'Google — strong quality for its size, good all-rounder',
+                        'llama3.2:latest':           'Good for general Q&A, summarization, and conversation',
+                        'llama3.2:1b':               'Good for simple questions and short responses',
+                        'gemma3:1b':                 'Google — strong quality for its size, good all-rounder',
+                        'claude-opus-4-8':           'Anthropic — most powerful, best for complex tasks',
+                        'claude-sonnet-4-6':         'Anthropic — best balance of speed and intelligence',
+                        'claude-haiku-4-5-20251001': 'Anthropic — fastest Claude model, great for quick replies',
                       }
                       const desc = descriptions[m]
                       const label = m.replace(':latest', '')

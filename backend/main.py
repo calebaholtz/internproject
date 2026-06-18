@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from auth import authenticate_user, create_access_token, get_current_user, require_admin
 import ollama
+import anthropic
 import config as cfg
 import json
 import psutil
@@ -14,14 +15,26 @@ import threading
 import ingest
 import rag
 
+CLAUDE_MODELS = [
+    "claude-opus-4-8",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5-20251001",
+]
+
+def _is_claude(model: str) -> bool:
+    return model.startswith("claude-")
+
 app = FastAPI(title="DocBot API")
 
 
 @app.on_event("startup")
 def warmup():
+    model = _load_config().get("model", cfg.DEFAULT_MODEL)
+    if _is_claude(model):
+        return
     try:
         ollama.chat(
-            model=_load_config().get("model", cfg.DEFAULT_MODEL),
+            model=model,
             messages=[{"role": "user", "content": "hi"}],
             options={"num_predict": 1},
             keep_alive=-1,
@@ -118,19 +131,33 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
                 system_message = app_config["guidance"]
 
             recent_history = conversation_histories[username][-cfg.MAX_HISTORY:]
-            messages = [{"role": "system", "content": system_message}] + recent_history
-            stream = ollama.chat(
-                model=app_config["model"],
-                messages=messages,
-                stream=True,
-                options={"num_ctx": cfg.NUM_CTX, "num_predict": cfg.NUM_PREDICT},
-                keep_alive=-1,
-            )
-            for chunk in stream:
-                content = chunk.message.content
-                if content:
-                    full_response.append(content)
-                    yield f"data: {json.dumps({'content': content})}\n\n"
+            model = app_config["model"]
+
+            if _is_claude(model):
+                client = anthropic.Anthropic(api_key=cfg.ANTHROPIC_API_KEY)
+                with client.messages.stream(
+                    model=model,
+                    max_tokens=cfg.NUM_PREDICT,
+                    system=system_message,
+                    messages=[{"role": m["role"], "content": m["content"]} for m in recent_history],
+                ) as stream:
+                    for text in stream.text_stream:
+                        full_response.append(text)
+                        yield f"data: {json.dumps({'content': text})}\n\n"
+            else:
+                messages = [{"role": "system", "content": system_message}] + recent_history
+                stream = ollama.chat(
+                    model=model,
+                    messages=messages,
+                    stream=True,
+                    options={"num_ctx": cfg.NUM_CTX, "num_predict": cfg.NUM_PREDICT},
+                    keep_alive=-1,
+                )
+                for chunk in stream:
+                    content = chunk.message.content
+                    if content:
+                        full_response.append(content)
+                        yield f"data: {json.dumps({'content': content})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
@@ -199,10 +226,11 @@ def list_models(current_user: dict = Depends(require_admin)):
     try:
         models = ollama.list()
         embedding_models = {"nomic-embed-text", "mxbai-embed-large", "all-minilm", "nomic-embed-text:latest"}
-        names = [m.model for m in models.models if m.model not in embedding_models]
-        return {"models": names}
+        ollama_names = [m.model for m in models.models if m.model not in embedding_models]
     except Exception:
-        return {"models": []}
+        ollama_names = []
+    claude_names = CLAUDE_MODELS if cfg.ANTHROPIC_API_KEY else []
+    return {"models": ollama_names + claude_names}
 
 
 @app.get("/admin/config")
@@ -265,21 +293,33 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
             sampler.start()
 
             start = time.time()
-            stream = ollama.chat(
-                model=app_config["model"],
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user",   "content": item["prompt"]},
-                ],
-                stream=True,
-                options={"num_ctx": cfg.NUM_CTX, "num_predict": cfg.NUM_PREDICT},
-                keep_alive=-1,
-            )
+            model = app_config["model"]
             response_text = ""
-            for chunk in stream:
-                content = chunk.message.content
-                if content:
-                    response_text += content
+            if _is_claude(model):
+                client = anthropic.Anthropic(api_key=cfg.ANTHROPIC_API_KEY)
+                with client.messages.stream(
+                    model=model,
+                    max_tokens=cfg.NUM_PREDICT,
+                    system=system_message,
+                    messages=[{"role": "user", "content": item["prompt"]}],
+                ) as stream:
+                    for text in stream.text_stream:
+                        response_text += text
+            else:
+                stream = ollama.chat(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user",   "content": item["prompt"]},
+                    ],
+                    stream=True,
+                    options={"num_ctx": cfg.NUM_CTX, "num_predict": cfg.NUM_PREDICT},
+                    keep_alive=-1,
+                )
+                for chunk in stream:
+                    content = chunk.message.content
+                    if content:
+                        response_text += content
             total = round(time.time() - start, 2)
 
             stop_event.set()

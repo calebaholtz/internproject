@@ -20,6 +20,10 @@ dist/
 # Runtime config state
 backend/app_config.json
 
+# API keys
+backend/.env
+.env
+
 # OS
 .DS_Store
 Thumbs.db
