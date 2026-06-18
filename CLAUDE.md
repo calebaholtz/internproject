@@ -50,9 +50,9 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 ## Claude API Pricing (per million tokens)
 | Model | Input | Output |
 |---|---|---|
-| claude-opus-4-8 | $15.00 | $75.00 |
+| claude-opus-4-8 | $5.00 | $25.00 |
 | claude-sonnet-4-6 | $3.00 | $15.00 |
-| claude-haiku-4-5-20251001 | $0.80 | $4.00 |
+| claude-haiku-4-5-20251001 | $1.00 | $5.00 |
 
 Cost per message = `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`
 
