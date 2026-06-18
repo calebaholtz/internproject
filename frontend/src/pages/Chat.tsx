@@ -50,6 +50,30 @@ export default function Chat() {
   const [lastCost, setLastCost] = useState<number | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const pendingTextRef = useRef<string>('')
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  function startTyping(assistantId: number) {
+    if (typingIntervalRef.current) return
+    typingIntervalRef.current = setInterval(() => {
+      if (pendingTextRef.current.length === 0) {
+        clearInterval(typingIntervalRef.current!)
+        typingIntervalRef.current = null
+        return
+      }
+      const char = pendingTextRef.current[0]
+      pendingTextRef.current = pendingTextRef.current.slice(1)
+      setMessages((prev) => prev.map((m) =>
+        m.id === assistantId ? { ...m, content: m.content + char } : m
+      ))
+    }, 12)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (typingIntervalRef.current) clearInterval(typingIntervalRef.current)
+    }
+  }, [])
 
   const hasMessages = messages.length > 0
 
@@ -92,6 +116,11 @@ export default function Chat() {
     setTtft(null)
     setTotalTime(null)
     setLastCost(null)
+    pendingTextRef.current = ''
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current)
+      typingIntervalRef.current = null
+    }
     const sendTime = performance.now()
 
     try {
@@ -135,12 +164,10 @@ export default function Chat() {
                 started = true
                 setTtft(parseFloat(((performance.now() - sendTime) / 1000).toFixed(2)))
                 setStreaming(true)
-                setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: parsed.content }])
-              } else {
-                setMessages((prev) => prev.map((m) =>
-                  m.id === assistantId ? { ...m, content: m.content + parsed.content } : m
-                ))
+                setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }])
               }
+              pendingTextRef.current += parsed.content
+              startTyping(assistantId)
             }
           } catch {}
         }
