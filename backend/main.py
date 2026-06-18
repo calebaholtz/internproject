@@ -21,6 +21,12 @@ CLAUDE_MODELS = [
     "claude-haiku-4-5-20251001",
 ]
 
+CLAUDE_PRICING = {
+    "claude-opus-4-8":           {"input": 15.00, "output": 75.00},
+    "claude-sonnet-4-6":         {"input":  3.00, "output": 15.00},
+    "claude-haiku-4-5-20251001": {"input":  0.80, "output":  4.00},
+}
+
 def _is_claude(model: str) -> bool:
     return model.startswith("claude-")
 
@@ -144,6 +150,10 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
                     for text in stream.text_stream:
                         full_response.append(text)
                         yield f"data: {json.dumps({'content': text})}\n\n"
+                    usage = stream.get_final_usage()
+                    pricing = CLAUDE_PRICING.get(model, {"input": 0, "output": 0})
+                    cost = (usage.input_tokens * pricing["input"] + usage.output_tokens * pricing["output"]) / 1_000_000
+                    yield f"data: {json.dumps({'cost': round(cost, 8), 'input_tokens': usage.input_tokens, 'output_tokens': usage.output_tokens})}\n\n"
             else:
                 messages = [{"role": "system", "content": system_message}] + recent_history
                 stream = ollama.chat(
@@ -158,6 +168,7 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
                     if content:
                         full_response.append(content)
                         yield f"data: {json.dumps({'content': content})}\n\n"
+                yield f"data: {json.dumps({'cost': 0.0, 'input_tokens': None, 'output_tokens': None})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
@@ -295,6 +306,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
             start = time.time()
             model = app_config["model"]
             response_text = ""
+            ttft = None
             if _is_claude(model):
                 client = anthropic.Anthropic(api_key=cfg.ANTHROPIC_API_KEY)
                 with client.messages.stream(
@@ -304,6 +316,8 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                     messages=[{"role": "user", "content": item["prompt"]}],
                 ) as stream:
                     for text in stream.text_stream:
+                        if ttft is None:
+                            ttft = round(time.time() - start, 2)
                         response_text += text
             else:
                 stream = ollama.chat(
@@ -319,6 +333,8 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                 for chunk in stream:
                     content = chunk.message.content
                     if content:
+                        if ttft is None:
+                            ttft = round(time.time() - start, 2)
                         response_text += content
             total = round(time.time() - start, 2)
 
@@ -333,6 +349,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
             results.append({
                 "label": item["label"],
                 "prompt": item["prompt"],
+                "ttft_s": ttft,
                 "total_s": total,
                 "peak_cpu": peak_cpu,
                 "avg_cpu": avg_cpu,
@@ -345,6 +362,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
             results.append({
                 "label": item["label"],
                 "prompt": item["prompt"],
+                "ttft_s": None,
                 "total_s": None,
                 "peak_cpu": None,
                 "avg_cpu": None,

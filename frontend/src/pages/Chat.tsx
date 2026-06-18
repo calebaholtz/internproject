@@ -21,6 +21,7 @@ interface Stats {
 interface BenchmarkResult {
   label: string
   prompt: string
+  ttft_s: number | null
   total_s: number | null
   peak_cpu: number | null
   avg_cpu: number | null
@@ -46,6 +47,7 @@ export default function Chat() {
   const [totalTime, setTotalTime] = useState<number | null>(null)
   const [benchmarking, setBenchmarking] = useState(false)
   const [benchmark, setBenchmark] = useState<BenchmarkData | null>(null)
+  const [lastCost, setLastCost] = useState<number | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -89,6 +91,7 @@ export default function Chat() {
     setStreaming(false)
     setTtft(null)
     setTotalTime(null)
+    setLastCost(null)
     const sendTime = performance.now()
 
     try {
@@ -123,6 +126,9 @@ export default function Chat() {
             if (parsed.error) {
               setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: `Error: ${parsed.error}` }])
               started = true
+            }
+            if (parsed.cost !== undefined) {
+              setLastCost(parsed.cost)
             }
             if (parsed.content) {
               if (!started) {
@@ -199,6 +205,7 @@ export default function Chat() {
           <div className="flex justify-between"><span>CPU</span><span className="text-white">{stats.cpu_percent}%</span></div>
           <div className="flex justify-between"><span>RAM</span><span className="text-white">{stats.ram_used_gb} / {stats.ram_total_gb} GB ({stats.ram_percent}%)</span></div>
           {totalTime !== null && <div className="flex justify-between"><span>Response time</span><span className="text-white">{totalTime}s</span></div>}
+          {lastCost !== null && <div className="flex justify-between"><span>Last msg cost</span><span className="text-white">{lastCost === 0 ? 'Free' : `$${lastCost.toFixed(6)}`}</span></div>}
 
           <button
             onClick={async () => {
@@ -231,7 +238,8 @@ export default function Chat() {
                     <div className="text-red-400 text-[10px]">{r.error}</div>
                   ) : (
                     <>
-                      <div className="flex justify-between"><span>Response time</span><span className="text-white">{r.total_s}s</span></div>
+                      <div className="flex justify-between"><span>First token</span><span className="text-white">{r.ttft_s}s</span></div>
+                      <div className="flex justify-between"><span>Total time</span><span className="text-white">{r.total_s}s</span></div>
                       <div className="flex justify-between"><span>Peak CPU</span><span className="text-white">{r.peak_cpu}%</span></div>
                       <div className="flex justify-between"><span>Avg CPU</span><span className="text-white">{r.avg_cpu}%</span></div>
                       <div className="flex justify-between"><span>Peak RAM</span><span className="text-white">{r.peak_ram}%</span></div>
