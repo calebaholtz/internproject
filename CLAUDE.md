@@ -5,26 +5,28 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 
 ## What Is Built
 - **Auth**: JWT login, hardcoded users, role-based access (`user` / `admin`)
-- **Chat**: Fully wired to Ollama via streaming SSE — tokens appear as they're generated, typing indicator shows until first token arrives
-- **Conversation history**: Per-user message history stored in memory on the backend — full conversation sent to Ollama on each request so the model remembers previous messages. Restarting the backend clears all history.
+- **Chat**: Fully wired to Ollama and Anthropic Claude API via streaming SSE — tokens appear as they're generated, typing indicator shows until first token arrives
+- **Dual LLM provider**: Backend detects the model name — if it starts with `claude-` it routes to the Anthropic API, otherwise uses Ollama. No config changes needed, just select the model in the admin panel.
+- **Anthropic integration**: Uses the `anthropic` Python SDK with streaming. API key loaded from `backend/.env` (gitignored). Claude models only appear in the dropdown if the key is set.
+- **Message cost tracking**: After each message, the diagnostics panel shows the cost. Claude API calls calculate cost from token usage × per-model pricing. Ollama shows "Free".
+- **Conversation history**: Per-user message history stored in memory on the backend — full conversation sent to the LLM on each request so the model remembers previous messages. Restarting the backend clears all history.
 - **New conversation button**: Appears in chat header once a conversation starts — clears frontend messages and calls `POST /chat/clear` to reset server-side history
-- **RAG pipeline**: Built directly with `pypdf`, `chromadb`, and `nomic-embed-text` (no LlamaIndex). PDFs are chunked, embedded, and stored in ChromaDB. On each chat message the query is embedded and the top 5 most relevant chunks are retrieved and injected into the system prompt.
+- **RAG pipeline**: Built directly with `pypdf`, `chromadb`, and `nomic-embed-text` (no LlamaIndex). PDFs are chunked, embedded, and stored in ChromaDB. On each chat message the query is embedded and the top K most relevant chunks are retrieved and injected into the system prompt.
 - **PDF ingestion** (`ingest.py`): Reads PDFs with pypdf, splits into 512-word chunks with 50-word overlap, embeds with `nomic-embed-text` via Ollama, stores in ChromaDB
 - **RAG retrieval** (`rag.py`): Embeds the user query, queries ChromaDB for top K chunks, returns them formatted with source labels
 - **Document management**: Upload, list, and delete PDFs via the admin panel — all wired to the backend and ChromaDB
-- **Ollama integration**: `ollama` Python package, `stream=True`, model and guidance configurable at runtime
 - **Persisted config**: Active model and guidance saved to `app_config.json` on disk — survives backend restarts
 - **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt
-- **Admin models**: `/admin/models` queries Ollama for installed models; embedding models filtered out of dropdown
+- **Admin models**: Merges installed Ollama models + Claude models (if API key set); embedding models filtered out
 - **Frontend chat**: Auto-resizing textarea, Enter to send, Shift+Enter for newline, Tab for 3-space indent, custom styled scrollbar, streaming message rendering, markdown rendering with bullet points
 - **Frontend admin**: Model dropdown and guidance prompt wired to backend; document list loads from disk on mount; model dropdown auto-saves immediately on change
 - **Sidebar document list**: Pulls real document list from backend, refreshes on navigation, shows "No documents uploaded" when empty
-- **Stream error display**: Errors from the backend stream are now shown in the chat bubble instead of silently disappearing
+- **Stream error display**: Errors from the backend stream are shown in the chat bubble instead of silently disappearing
 - **Dynamic API URL**: Frontend uses `window.location.hostname` to build the API URL — works on both localhost and EC2 without code changes
-- **Diagnostics panel**: Floating panel in bottom-right of chat screen showing active model, CPU%, RAM usage, time to first token, and total response time — polls every 2 seconds (temporary dev tool)
-- **Performance tuning**: Context window set to 2048 tokens (`num_ctx`); `keep_alive=-1` on all Ollama calls keeps the model permanently loaded in VRAM — never unloads between requests
-- **Model warmup**: On backend startup, a silent dummy request is sent to Ollama to preload the model into VRAM so the first real user message has no cold start delay
-- **Benchmark**: `POST /debug/benchmark` runs 3 RAG-grounded test prompts and records response time, peak CPU, avg CPU, peak RAM, and avg RAM per prompt — accessible via Run Benchmark button in the diagnostics panel
+- **Diagnostics panel**: Shows active model, CPU%, RAM, response time, last message cost, and a Run Benchmark button — polls every 2 seconds
+- **Performance tuning**: Context window 1024 tokens, max response 512 tokens, last 6 messages of history sent, top 3 RAG chunks; `keep_alive=-1` keeps Ollama model permanently in VRAM
+- **Model warmup**: On backend startup, a silent dummy request preloads the Ollama model into VRAM (skipped for Claude models)
+- **Benchmark**: `POST /debug/benchmark` runs 3 RAG-grounded prompts and records first token time, total time, peak CPU, avg CPU, peak RAM, avg RAM per prompt
 - **CORS**: Set to allow all origins (`*`) for EC2 compatibility — tighten before any real deployment
 
 ## What Is NOT Built Yet
@@ -45,8 +47,17 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 ### Important
 - `nomic-embed-text` must be pulled on every machine before RAG works — every chat message runs through it even with no documents uploaded
 
+## Claude API Pricing (per million tokens)
+| Model | Input | Output |
+|---|---|---|
+| claude-opus-4-8 | $15.00 | $75.00 |
+| claude-sonnet-4-6 | $3.00 | $15.00 |
+| claude-haiku-4-5-20251001 | $0.80 | $4.00 |
+
+Cost per message = `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`
+
 ## Stack
-- **Backend**: Python 3.11+, FastAPI, ollama, chromadb, pypdf, psutil, python-jose, passlib, bcrypt
+- **Backend**: Python 3.11+, FastAPI, ollama, anthropic, python-dotenv, chromadb, pypdf, psutil, python-jose, passlib, bcrypt
 - **Embeddings**: `nomic-embed-text` via Ollama (must be pulled before using RAG)
 - **Vector store**: ChromaDB (persistent, stored in `chroma_db/`)
 - **Frontend**: React 18, Vite, Tailwind CSS, Radix UI primitives, React Router, Lucide icons
@@ -107,7 +118,7 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 |---|---|---|---|---|
 | POST | `/auth/login` | None | Working | Returns JWT token |
 | GET | `/auth/me` | Any | Working | Current user + role |
-| POST | `/chat/message` | Any | Working | Streams Ollama response via SSE |
+| POST | `/chat/message` | Any | Working | Streams response via SSE — routes to Ollama or Anthropic based on model name |
 | GET | `/admin/documents` | Admin | Working | Lists PDFs from knowledge folder |
 | POST | `/admin/upload` | Admin | Working | Saves PDF, runs ingestion into ChromaDB |
 | DELETE | `/admin/documents/{name}` | Admin | Working | Deletes PDF and removes from ChromaDB |
