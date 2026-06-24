@@ -129,8 +129,9 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
             if context:
                 system_message = (
                     f"{app_config['guidance']}\n\n"
-                    "Use the following document excerpts to answer the question. "
-                    "If the answer is not in the documents, say so.\n\n"
+                    "Use ONLY the following document excerpts to answer the question. "
+                    "Answer based strictly on what is written in these excerpts. "
+                    "If the question asks about a specific section or topic and it is not clearly present in the excerpts below, say so rather than guessing.\n\n"
                     f"{context}"
                 )
             else:
@@ -186,6 +187,16 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
 def clear_history(current_user: dict = Depends(get_current_user)):
     conversation_histories[current_user["username"]] = []
     return {"status": "ok"}
+
+
+@app.get("/admin/chunks")
+def list_chunks(current_user: dict = Depends(require_admin)):
+    result = ingest.collection.get()
+    counts = {}
+    for meta in result["metadatas"]:
+        source = meta.get("source", "unknown")
+        counts[source] = counts.get(source, 0) + 1
+    return {"chunk_counts": counts, "total": sum(counts.values())}
 
 
 @app.get("/admin/documents")
