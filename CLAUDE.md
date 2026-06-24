@@ -108,7 +108,10 @@ DEFAULT_MODEL = "llama3.2"
 EMBEDDING_MODEL = "nomic-embed-text"
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 50
-TOP_K = 5
+TOP_K = 5           # chunks retrieved per query — increase for larger docs
+MAX_HISTORY = 6     # last N messages sent to LLM
+NUM_CTX = 4096      # context window size
+NUM_PREDICT = 2048  # max response tokens
 SECRET_KEY = "change-me-before-deploying"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 ```
