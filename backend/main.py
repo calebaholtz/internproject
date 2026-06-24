@@ -307,6 +307,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
             model = app_config["model"]
             response_text = ""
             ttft = None
+            prompt_cost = 0.0
             if _is_claude(model):
                 client = anthropic.Anthropic(api_key=cfg.ANTHROPIC_API_KEY)
                 with client.messages.stream(
@@ -319,6 +320,9 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                         if ttft is None:
                             ttft = round(time.time() - start, 2)
                         response_text += text
+                    usage = stream.get_final_message().usage
+                    pricing = CLAUDE_PRICING.get(model, {"input": 0, "output": 0})
+                    prompt_cost = (usage.input_tokens * pricing["input"] + usage.output_tokens * pricing["output"]) / 1_000_000
             else:
                 stream = ollama.chat(
                     model=model,
@@ -351,6 +355,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                 "prompt": item["prompt"],
                 "ttft_s": ttft,
                 "total_s": total,
+                "cost": round(prompt_cost, 8),
                 "peak_cpu": peak_cpu,
                 "avg_cpu": avg_cpu,
                 "peak_ram": peak_ram,
@@ -364,6 +369,7 @@ def run_benchmark(current_user: dict = Depends(get_current_user)):
                 "prompt": item["prompt"],
                 "ttft_s": None,
                 "total_s": None,
+                "cost": None,
                 "peak_cpu": None,
                 "avg_cpu": None,
                 "peak_ram": None,
