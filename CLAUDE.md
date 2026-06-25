@@ -11,11 +11,12 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - **Message cost tracking**: After each message, the diagnostics panel shows the cost. Claude API calls calculate cost from token usage × per-model pricing. Ollama shows "Free".
 - **Conversation history**: Per-user message history stored in memory on the backend — full conversation sent to the LLM on each request so the model remembers previous messages. Restarting the backend clears all history.
 - **New conversation button**: Appears in chat header once a conversation starts — clears frontend messages and calls `POST /chat/clear` to reset server-side history
-- **RAG pipeline**: Built directly with `pypdf`, `chromadb`, and `nomic-embed-text` (no LlamaIndex). PDFs are chunked per-page with page number metadata, embedded, and stored in ChromaDB. On each chat message the query is embedded and the top K most relevant chunks are retrieved and injected into the system prompt.
-- **Contextual Retrieval**: After initial ingestion, a background thread runs each chunk through a local Ollama model to generate a 1-2 sentence description of what that chunk is about (section, topic, page context). That description is prepended to the chunk before re-embedding — eliminating ambiguity when two sections use similar language. Admin panel shows enrichment progress ("Enriching 23/80" → "Ready ✓").
-- **PDF ingestion** (`ingest.py`): Reads PDFs page-by-page with pypdf, splits each page into 256-word chunks with 40-word overlap, embeds with `nomic-embed-text`, stores in ChromaDB with `{"source", "page", "enriched"}` metadata. `enrich_file()` runs background contextual enrichment.
-- **RAG retrieval** (`rag.py`): Embeds the user query, queries ChromaDB for top K chunks, returns them formatted with source and page labels
-- **Document management**: Upload, list, and delete PDFs via the admin panel — all wired to the backend and ChromaDB
+- **RAG pipeline**: Built with `pypdf`, `qdrant-client`, and `nomic-embed-text`. PDFs are chunked per-page with page number metadata, embedded, and stored in Qdrant. Each query runs hybrid search (semantic + keyword) and injects the top K results into the system prompt.
+- **Hybrid Search**: Every query runs two searches simultaneously — semantic vector search (finds conceptually related content) and keyword full-text search (finds exact section/appendix names). Results appearing in both are ranked first. Built on Qdrant's native full-text payload index — no extra models or API costs.
+- **Contextual Retrieval**: After initial ingestion, a background thread runs each chunk through a local Ollama model to generate a 1-2 sentence description of what that chunk is about. That description is prepended to the chunk before re-embedding — eliminating ambiguity when two sections use similar language. Admin panel shows enrichment progress ("Enriching 23/80" → "Ready ✓").
+- **PDF ingestion** (`ingest.py`): Reads PDFs page-by-page with pypdf, splits each page into 256-word chunks with 40-word overlap, embeds with `nomic-embed-text`, stores in Qdrant with `{"source", "page", "text", "enriched"}` payload. `enrich_file()` runs background contextual enrichment. UUIDs used as point IDs.
+- **RAG retrieval** (`rag.py`): Runs semantic + keyword search in parallel, merges with priority ordering (both > keyword-only > semantic-only), returns top K chunks formatted with source and page labels
+- **Document management**: Upload, list, and delete PDFs via the admin panel — all wired to the backend and Qdrant
 - **Persisted config**: Active model and guidance saved to `app_config.json` on disk — survives backend restarts
 - **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt
 - **Admin models**: Merges installed Ollama models + Claude models (if API key set); embedding models filtered out
@@ -58,9 +59,9 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 Cost per message = `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`
 
 ## Stack
-- **Backend**: Python 3.11+, FastAPI, ollama, anthropic, python-dotenv, chromadb, pypdf, psutil, python-jose, passlib, bcrypt
+- **Backend**: Python 3.11+, FastAPI, ollama, anthropic, python-dotenv, qdrant-client, pypdf, psutil, python-jose, passlib, bcrypt
 - **Embeddings**: `nomic-embed-text` via Ollama (must be pulled before using RAG)
-- **Vector store**: ChromaDB (persistent, stored in `chroma_db/`)
+- **Vector store**: Qdrant (persistent, stored in `qdrant_db/`) — supports hybrid dense + full-text search
 - **Frontend**: React 18, Vite, Tailwind CSS, Radix UI primitives, React Router, Lucide icons
 - **Not used**: LlamaIndex — RAG pipeline built directly without it
 
@@ -69,7 +70,7 @@ Cost per message = `(input_tokens × input_rate + output_tokens × output_rate) 
 backend/       FastAPI app — main.py, auth.py, users.py, config.py, ingest.py, rag.py
 frontend/      React SPA — login, chat, admin panel
 knowledge/     PDF knowledge base — admin uploads land here
-chroma_db/     Auto-generated vector store (gitignored)
+qdrant_db/     Auto-generated vector store (gitignored)
 ```
 
 ## Running Locally
