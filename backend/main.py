@@ -199,6 +199,13 @@ def list_chunks(current_user: dict = Depends(require_admin)):
     return {"chunk_counts": counts, "total": sum(counts.values())}
 
 
+@app.get("/admin/enrichment-status")
+def enrichment_status(current_user: dict = Depends(require_admin)):
+    os.makedirs(cfg.KNOWLEDGE_FOLDER, exist_ok=True)
+    docs = [n for n in os.listdir(cfg.KNOWLEDGE_FOLDER) if n.endswith(".pdf")]
+    return {name: ingest.enrichment_status(name) for name in docs}
+
+
 @app.get("/admin/documents")
 def list_documents(current_user: dict = Depends(require_admin)):
     os.makedirs(cfg.KNOWLEDGE_FOLDER, exist_ok=True)
@@ -230,6 +237,14 @@ async def upload_document(
         ingest.ingest_file(path)
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Ingestion error: {str(e)}")
+
+    enrich_model = app_config["model"] if not _is_claude(app_config["model"]) else cfg.DEFAULT_MODEL
+    threading.Thread(
+        target=ingest.enrich_file,
+        args=(file.filename, enrich_model),
+        daemon=True,
+    ).start()
+
     return {"status": "ok", "filename": file.filename}
 
 

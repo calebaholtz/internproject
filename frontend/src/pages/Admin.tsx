@@ -24,6 +24,7 @@ export default function Admin() {
   const [models, setModels] = useState<string[]>([])
   const [guidance, setGuidance] = useState('')
   const [saved, setSaved] = useState(false)
+  const [enrichmentStatus, setEnrichmentStatus] = useState<Record<string, { total: number; enriched: number; done: boolean }>>({})
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [uploading, setUploading] = useState(false)
@@ -35,8 +36,18 @@ export default function Admin() {
       .catch(() => {})
   }
 
+  function fetchEnrichmentStatus() {
+    fetch(`${API_URL}/admin/enrichment-status`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then(setEnrichmentStatus)
+      .catch(() => {})
+  }
+
   useEffect(() => {
     fetchDocs()
+    fetchEnrichmentStatus()
+    const id = setInterval(fetchEnrichmentStatus, 3000)
+    return () => clearInterval(id)
 
     fetch(`${API_URL}/admin/config`, { headers: authHeaders() })
       .then((r) => r.json())
@@ -164,6 +175,13 @@ export default function Admin() {
                             <div className="flex items-center gap-2">
                               <FileText className="w-3.5 h-3.5 text-gray-600 shrink-0" />
                               <span className="text-gray-300 text-sm">{doc.name}</span>
+                              {enrichmentStatus[doc.name] && (
+                                enrichmentStatus[doc.name].done
+                                  ? <span className="text-[10px] text-emerald-400 font-medium">Ready ✓</span>
+                                  : <span className="text-[10px] text-yellow-400 font-medium">
+                                      Enriching {enrichmentStatus[doc.name].enriched}/{enrichmentStatus[doc.name].total}
+                                    </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-gray-500 text-sm">{doc.size}</td>
