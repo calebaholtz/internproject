@@ -6,8 +6,9 @@ __pycache__/
 venv/
 .venv/
 
-# Chroma vector store (auto-generated)
+# Vector stores (auto-generated)
 chroma_db/
+qdrant_db/
 
 # Knowledge base PDFs (local only)
 knowledge/

@@ -191,11 +191,7 @@ def clear_history(current_user: dict = Depends(get_current_user)):
 
 @app.get("/admin/chunks")
 def list_chunks(current_user: dict = Depends(require_admin)):
-    result = ingest.collection.get()
-    counts = {}
-    for meta in result["metadatas"]:
-        source = meta.get("source", "unknown")
-        counts[source] = counts.get(source, 0) + 1
+    counts = ingest.get_chunk_counts()
     return {"chunk_counts": counts, "total": sum(counts.values())}
 
 
