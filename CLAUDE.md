@@ -11,9 +11,10 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - **Message cost tracking**: After each message, the diagnostics panel shows the cost. Claude API calls calculate cost from token usage × per-model pricing. Ollama shows "Free".
 - **Conversation history**: Per-user message history stored in memory on the backend — full conversation sent to the LLM on each request so the model remembers previous messages. Restarting the backend clears all history.
 - **New conversation button**: Appears in chat header once a conversation starts — clears frontend messages and calls `POST /chat/clear` to reset server-side history
-- **RAG pipeline**: Built directly with `pypdf`, `chromadb`, and `nomic-embed-text` (no LlamaIndex). PDFs are chunked, embedded, and stored in ChromaDB. On each chat message the query is embedded and the top K most relevant chunks are retrieved and injected into the system prompt.
-- **PDF ingestion** (`ingest.py`): Reads PDFs with pypdf, splits into 512-word chunks with 50-word overlap, embeds with `nomic-embed-text` via Ollama, stores in ChromaDB
-- **RAG retrieval** (`rag.py`): Embeds the user query, queries ChromaDB for top K chunks, returns them formatted with source labels
+- **RAG pipeline**: Built directly with `pypdf`, `chromadb`, and `nomic-embed-text` (no LlamaIndex). PDFs are chunked per-page with page number metadata, embedded, and stored in ChromaDB. On each chat message the query is embedded and the top K most relevant chunks are retrieved and injected into the system prompt.
+- **Contextual Retrieval**: After initial ingestion, a background thread runs each chunk through a local Ollama model to generate a 1-2 sentence description of what that chunk is about (section, topic, page context). That description is prepended to the chunk before re-embedding — eliminating ambiguity when two sections use similar language. Admin panel shows enrichment progress ("Enriching 23/80" → "Ready ✓").
+- **PDF ingestion** (`ingest.py`): Reads PDFs page-by-page with pypdf, splits each page into 256-word chunks with 40-word overlap, embeds with `nomic-embed-text`, stores in ChromaDB with `{"source", "page", "enriched"}` metadata. `enrich_file()` runs background contextual enrichment.
+- **RAG retrieval** (`rag.py`): Embeds the user query, queries ChromaDB for top K chunks, returns them formatted with source and page labels
 - **Document management**: Upload, list, and delete PDFs via the admin panel — all wired to the backend and ChromaDB
 - **Persisted config**: Active model and guidance saved to `app_config.json` on disk — survives backend restarts
 - **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt
@@ -24,7 +25,7 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - **Stream error display**: Errors from the backend stream are shown in the chat bubble instead of silently disappearing
 - **Dynamic API URL**: Frontend uses `window.location.hostname` to build the API URL — works on both localhost and EC2 without code changes
 - **Diagnostics panel**: Shows active model, CPU%, RAM, response time, last message cost, and a Run Benchmark button — polls every 2 seconds
-- **Performance tuning**: Context window 1024 tokens, max response 512 tokens, last 6 messages of history sent, top 3 RAG chunks; `keep_alive=-1` keeps Ollama model permanently in VRAM
+- **Performance tuning**: Context window 4096 tokens, max response 2048 tokens, last 6 messages of history sent, top 20 RAG chunks; `keep_alive=-1` keeps Ollama model permanently in VRAM
 - **Model warmup**: On backend startup, a silent dummy request preloads the Ollama model into VRAM (skipped for Claude models)
 - **Benchmark**: `POST /debug/benchmark` runs 3 RAG-grounded prompts and records first token time, total time, peak CPU, avg CPU, peak RAM, avg RAM per prompt
 - **CORS**: Set to allow all origins (`*`) for EC2 compatibility — tighten before any real deployment
