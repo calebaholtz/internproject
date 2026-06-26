@@ -1,6 +1,6 @@
 import ollama
 import config as cfg
-from qdrantclient.models import Filter, FieldCondition, MatchText
+from qdrant_client.models import Filter, FieldCondition, MatchText
 from db import client, COLLECTION
 
 

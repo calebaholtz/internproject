@@ -3,7 +3,7 @@ import uuid
 import pypdf
 import ollama
 import config as cfg
-from qdrantclient.models import PointStruct, Filter, FieldCondition, MatchValue
+from qdrant_client.models import PointStruct, Filter, FieldCondition, MatchValue
 from db import client, COLLECTION
 
 os.makedirs(cfg.KNOWLEDGE_FOLDER, exist_ok=True)
