@@ -234,7 +234,7 @@ async def upload_document(
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Ingestion error: {str(e)}")
 
-    enrich_model = app_config["model"] if not _is_claude(app_config["model"]) else cfg.DEFAULT_MODEL
+    enrich_model = cfg.ENRICH_MODEL
     threading.Thread(
         target=ingest.enrich_file,
         args=(file.filename, enrich_model),
