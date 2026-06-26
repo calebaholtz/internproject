@@ -3,6 +3,7 @@ import uuid
 import pypdf
 import ollama
 import config as cfg
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from qdrant_client.models import PointStruct, Filter, FieldCondition, MatchValue
 from db import client, COLLECTION
 
@@ -56,6 +57,38 @@ def ingest_file(path: str):
         client.upsert(collection_name=COLLECTION, points=points)
 
 
+def _enrich_chunk(point, model: str):
+    if point.payload.get("enriched"):
+        return
+    try:
+        original_text = point.payload.get("text", "")
+        response = ollama.chat(
+            model=model,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Briefly describe in 1-2 sentences what section, topic, or concept "
+                    "this text chunk is from. Mention any visible section numbers, headings, "
+                    "or key topics. Output only the description.\n\nText:\n" + original_text
+                ),
+            }],
+            options={"num_predict": 80},
+        )
+        description = response.message.content.strip()
+        enriched_text = f"{description}\n\n{original_text}"
+        new_embedding = ollama.embeddings(model=cfg.EMBEDDING_MODEL, prompt=enriched_text).embedding
+        client.upsert(
+            collection_name=COLLECTION,
+            points=[PointStruct(
+                id=point.id,
+                vector=new_embedding,
+                payload={**point.payload, "text": enriched_text, "enriched": True},
+            )],
+        )
+    except Exception:
+        pass
+
+
 def enrich_file(filename: str, model: str):
     results, _ = client.scroll(
         collection_name=COLLECTION,
@@ -65,37 +98,12 @@ def enrich_file(filename: str, model: str):
         with_vectors=False,
     )
 
-    for point in results:
-        if point.payload.get("enriched"):
-            continue
-        try:
-            original_text = point.payload.get("text", "")
-            response = ollama.chat(
-                model=model,
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        "Briefly describe in 1-2 sentences what section, topic, or concept "
-                        "this text chunk is from. Mention any visible section numbers, headings, "
-                        "or key topics. Output only the description.\n\nText:\n" + original_text
-                    ),
-                }],
-                options={"num_predict": 80},
-            )
-            description = response.message.content.strip()
-            enriched_text = f"{description}\n\n{original_text}"
-            new_embedding = ollama.embeddings(model=cfg.EMBEDDING_MODEL, prompt=enriched_text).embedding
+    unenriched = [p for p in results if not p.payload.get("enriched")]
 
-            client.upsert(
-                collection_name=COLLECTION,
-                points=[PointStruct(
-                    id=point.id,
-                    vector=new_embedding,
-                    payload={**point.payload, "text": enriched_text, "enriched": True},
-                )],
-            )
-        except Exception:
-            continue
+    with ThreadPoolExecutor(max_workers=cfg.ENRICH_WORKERS) as executor:
+        futures = [executor.submit(_enrich_chunk, point, model) for point in unenriched]
+        for future in as_completed(futures):
+            future.result()
 
 
 def enrichment_status(filename: str) -> dict:

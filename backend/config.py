@@ -8,6 +8,7 @@ KNOWLEDGE_FOLDER = "./knowledge"
 QDRANT_PATH = "./qdrant_db"
 DEFAULT_MODEL = "gemma3:1b"
 ENRICH_MODEL = "gemma3:1b"
+ENRICH_WORKERS = 4
 EMBEDDING_MODEL = "nomic-embed-text"
 CHUNK_SIZE = 256
 CHUNK_OVERLAP = 40
