@@ -8,12 +8,13 @@ def retrieve(query: str) -> str:
     embedding = ollama.embeddings(model=cfg.EMBEDDING_MODEL, prompt=query).embedding
 
     # Semantic search
-    semantic_results = client.search(
+    semantic_response = client.query_points(
         collection_name=COLLECTION,
-        query_vector=embedding,
+        query=embedding,
         limit=cfg.TOP_K,
         with_payload=True,
     )
+    semantic_results = semantic_response.points
 
     # Keyword search
     try:

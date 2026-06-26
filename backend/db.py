@@ -1,9 +1,7 @@
 import os
 import config as cfg
 from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance, VectorParams, TextIndexParams, TokenizerType, PayloadSchemaType,
-)
+from qdrant_client.models import Distance, VectorParams
 
 os.makedirs(cfg.QDRANT_PATH, exist_ok=True)
 
@@ -22,7 +20,7 @@ def ensure_collection():
         client.create_payload_index(
             collection_name=COLLECTION,
             field_name="text",
-            field_schema=TextIndexParams(type=PayloadSchemaType.TEXT, tokenizer=TokenizerType.WORD),
+            field_schema="text",
         )
 
 
