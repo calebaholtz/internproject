@@ -6,8 +6,8 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 KNOWLEDGE_FOLDER = "./knowledge"
 QDRANT_PATH = "./qdrant_db"
-DEFAULT_MODEL = "gemma3:1b"
-ENRICH_MODEL = "gemma3:1b"
+DEFAULT_MODEL = "gemma4"
+ENRICH_MODEL = "gemma4"
 ENRICH_WORKERS = 4
 EMBEDDING_MODEL = "nomic-embed-text"
 CHUNK_SIZE = 256
