@@ -31,27 +31,34 @@ def ingest_file(path: str):
     delete_file(filename)
 
     reader = pypdf.PdfReader(path)
-    points = []
+    raw_chunks = []
     chunk_index = 0
 
     for page_num, page in enumerate(reader.pages, start=1):
         text = page.extract_text() or ""
         if not text.strip():
             continue
-        chunks = _chunk_text(text)
-        for chunk in chunks:
-            embedding = ollama.embeddings(model=cfg.EMBEDDING_MODEL, prompt=chunk).embedding
-            points.append(PointStruct(
-                id=_make_id(filename, chunk_index),
-                vector=embedding,
-                payload={
-                    "source": filename,
-                    "page": page_num,
-                    "text": chunk,
-                    "enriched": False,
-                },
-            ))
+        for chunk in _chunk_text(text):
+            raw_chunks.append((chunk_index, page_num, chunk))
             chunk_index += 1
+
+    def _embed_chunk(item):
+        idx, page_num, chunk = item
+        embedding = ollama.embeddings(model=cfg.EMBEDDING_MODEL, prompt=chunk).embedding
+        return PointStruct(
+            id=_make_id(filename, idx),
+            vector=embedding,
+            payload={"source": filename, "page": page_num, "text": chunk, "enriched": False},
+        )
+
+    points = []
+    with ThreadPoolExecutor(max_workers=cfg.ENRICH_WORKERS) as executor:
+        futures = {executor.submit(_embed_chunk, item): item for item in raw_chunks}
+        for future in as_completed(futures):
+            try:
+                points.append(future.result())
+            except Exception:
+                pass
 
     if points:
         client.upsert(collection_name=COLLECTION, points=points)
