@@ -3,37 +3,10 @@ import uuid
 import pypdf
 import ollama
 import config as cfg
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance, VectorParams, PointStruct,
-    Filter, FieldCondition, MatchValue,
-    TextIndexParams, TokenizerType,
-    PayloadSchemaType,
-)
+from qdrantclient.models import PointStruct, Filter, FieldCondition, MatchValue
+from db import client, COLLECTION
 
 os.makedirs(cfg.KNOWLEDGE_FOLDER, exist_ok=True)
-os.makedirs(cfg.QDRANT_PATH, exist_ok=True)
-
-_client = QdrantClient(path=cfg.QDRANT_PATH)
-COLLECTION = "knowledge"
-VECTOR_SIZE = 768  # nomic-embed-text output dimension
-
-
-def _ensure_collection():
-    existing = [c.name for c in _client.get_collections().collections]
-    if COLLECTION not in existing:
-        _client.create_collection(
-            collection_name=COLLECTION,
-            vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
-        )
-        _client.create_payload_index(
-            collection_name=COLLECTION,
-            field_name="text",
-            field_schema=TextIndexParams(type=PayloadSchemaType.TEXT, tokenizer=TokenizerType.WORD),
-        )
-
-
-_ensure_collection()
 
 
 def _chunk_text(text: str) -> list[str]:
@@ -80,11 +53,11 @@ def ingest_file(path: str):
             chunk_index += 1
 
     if points:
-        _client.upsert(collection_name=COLLECTION, points=points)
+        client.upsert(collection_name=COLLECTION, points=points)
 
 
 def enrich_file(filename: str, model: str):
-    results, _ = _client.scroll(
+    results, _ = client.scroll(
         collection_name=COLLECTION,
         scroll_filter=Filter(must=[FieldCondition(key="source", match=MatchValue(value=filename))]),
         limit=10000,
@@ -113,7 +86,7 @@ def enrich_file(filename: str, model: str):
             enriched_text = f"{description}\n\n{original_text}"
             new_embedding = ollama.embeddings(model=cfg.EMBEDDING_MODEL, prompt=enriched_text).embedding
 
-            _client.upsert(
+            client.upsert(
                 collection_name=COLLECTION,
                 points=[PointStruct(
                     id=point.id,
@@ -126,7 +99,7 @@ def enrich_file(filename: str, model: str):
 
 
 def enrichment_status(filename: str) -> dict:
-    all_points, _ = _client.scroll(
+    all_points, _ = client.scroll(
         collection_name=COLLECTION,
         scroll_filter=Filter(must=[FieldCondition(key="source", match=MatchValue(value=filename))]),
         limit=10000,
@@ -139,7 +112,7 @@ def enrichment_status(filename: str) -> dict:
 
 
 def get_chunk_counts() -> dict:
-    all_points, _ = _client.scroll(
+    all_points, _ = client.scroll(
         collection_name=COLLECTION,
         limit=100000,
         with_payload=True,
@@ -153,7 +126,7 @@ def get_chunk_counts() -> dict:
 
 
 def delete_file(filename: str):
-    _client.delete(
+    client.delete(
         collection_name=COLLECTION,
         points_selector=Filter(must=[FieldCondition(key="source", match=MatchValue(value=filename))]),
     )

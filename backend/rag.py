@@ -1,17 +1,14 @@
 import ollama
 import config as cfg
-from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchText
-
-_client = QdrantClient(path=cfg.QDRANT_PATH)
-COLLECTION = "knowledge"
+from qdrantclient.models import Filter, FieldCondition, MatchText
+from db import client, COLLECTION
 
 
 def retrieve(query: str) -> str:
     embedding = ollama.embeddings(model=cfg.EMBEDDING_MODEL, prompt=query).embedding
 
     # Semantic search
-    semantic_results = _client.search(
+    semantic_results = client.search(
         collection_name=COLLECTION,
         query_vector=embedding,
         limit=cfg.TOP_K,
@@ -20,7 +17,7 @@ def retrieve(query: str) -> str:
 
     # Keyword search
     try:
-        keyword_results, _ = _client.scroll(
+        keyword_results, _ = client.scroll(
             collection_name=COLLECTION,
             scroll_filter=Filter(must=[FieldCondition(key="text", match=MatchText(text=query))]),
             limit=cfg.TOP_K,
