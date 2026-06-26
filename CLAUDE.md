@@ -13,8 +13,9 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - **New conversation button**: Appears in chat header once a conversation starts — clears frontend messages and calls `POST /chat/clear` to reset server-side history
 - **RAG pipeline**: Built with `pypdf`, `qdrant-client`, and `nomic-embed-text`. PDFs are chunked per-page with page number metadata, embedded, and stored in Qdrant. Each query runs hybrid search (semantic + keyword) and injects the top K results into the system prompt.
 - **Hybrid Search**: Every query runs two searches simultaneously — semantic vector search (finds conceptually related content) and keyword full-text search (finds exact section/appendix names). Results appearing in both are ranked first. Built on Qdrant's native full-text payload index — no extra models or API costs.
-- **Contextual Retrieval**: After initial ingestion, a background thread runs each chunk through a local Ollama model to generate a 1-2 sentence description of what that chunk is about. That description is prepended to the chunk before re-embedding — eliminating ambiguity when two sections use similar language. Admin panel shows enrichment progress ("Enriching 23/80" → "Ready ✓").
-- **PDF ingestion** (`ingest.py`): Reads PDFs page-by-page with pypdf, splits each page into 256-word chunks with 40-word overlap, embeds with `nomic-embed-text`, stores in Qdrant with `{"source", "page", "text", "enriched"}` payload. `enrich_file()` runs background contextual enrichment. UUIDs used as point IDs.
+- **Contextual Retrieval**: After initial ingestion, a background thread runs each chunk through `gemma4` (local Ollama) to generate a 1-2 sentence description of what that chunk is about. That description is prepended to the chunk before re-embedding — eliminating ambiguity when two sections use similar language. Admin panel shows enrichment progress ("Enriching 23/80" → "Ready ✓"). Claude is never used for enrichment — always local.
+- **Parallel ingestion and enrichment**: Both the initial embedding step and the enrichment step run 4 chunks simultaneously using `ThreadPoolExecutor`. On EC2 with `OLLAMA_NUM_PARALLEL=4`, the T4 GPU processes all 4 concurrently for maximum throughput.
+- **PDF ingestion** (`ingest.py`): Reads PDFs page-by-page with pypdf, splits each page into 256-word chunks with 40-word overlap, embeds with `nomic-embed-text` in parallel, stores in Qdrant with `{"source", "page", "text", "enriched"}` payload. `enrich_file()` runs background contextual enrichment in parallel. UUIDs used as point IDs.
 - **RAG retrieval** (`rag.py`): Runs semantic + keyword search in parallel, merges with priority ordering (both > keyword-only > semantic-only), returns top K chunks formatted with source and page labels. The merge strategy is a lightweight fusion-based reranking (similar to Reciprocal Rank Fusion) — no separate reranking model needed.
 - **Implicit metadata filtering**: Per-page chunking stores `source` and `page` on every chunk. The keyword search acts as an implicit section/appendix filter — asking about "Appendix A" or "Section 2.2" finds those chunks by exact string match, effectively filtering to that section without a separate filter step.
 - **Query expansion analogy**: Contextual Retrieval enriches chunks from the document side rather than expanding the query — closes the same gap between how users ask questions and how documents are written, from the opposite direction.
@@ -39,17 +40,18 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 
 ## Installed Ollama Models
 ### Laptop
-- `llama3.2:latest` — general purpose, good balance of quality
-- `llama3.2:1b` — smaller version, good for simple questions
-- `gemma3:1b` — Google's latest small model, strong quality for its size
+- `gemma3:1b` — chat and enrichment model
 - `nomic-embed-text` — embedding model only, used by RAG pipeline (not a chat model)
 
 ### EC2 (g4dn.xlarge — NVIDIA T4 GPU, 16GB VRAM)
-- `gemma4:latest` — Google's latest model, high quality, 9.6GB — runs fully on GPU
+- `gemma4:latest` — chat and enrichment model, 9.6GB — runs fully on GPU
+- `gemma3:1b` — used as fallback enrichment model
 - `nomic-embed-text` — embedding model, required for RAG pipeline
 
 ### Important
-- `nomic-embed-text` must be pulled on every machine before RAG works — every chat message runs through it even with no documents uploaded
+- `nomic-embed-text` must be pulled on every machine before RAG works
+- Start Ollama on EC2 with `$env:OLLAMA_NUM_PARALLEL=4; ollama serve` for parallel enrichment
+- Claude (API) is only used for chat responses — never for ingestion, embedding, or enrichment
 
 ## Claude API Pricing (per million tokens)
 | Model | Input | Output |
@@ -108,11 +110,14 @@ Default credentials:
 ## config.py Reference
 ```python
 KNOWLEDGE_FOLDER = "./knowledge"
-DEFAULT_MODEL = "llama3.2"
+QDRANT_PATH = "./qdrant_db"
+DEFAULT_MODEL = "gemma4"
+ENRICH_MODEL = "gemma4"     # local Ollama model used for contextual enrichment
+ENRICH_WORKERS = 4          # parallel threads for ingestion and enrichment
 EMBEDDING_MODEL = "nomic-embed-text"
-CHUNK_SIZE = 512
-CHUNK_OVERLAP = 50
-TOP_K = 5           # chunks retrieved per query — increase for larger docs
+CHUNK_SIZE = 256
+CHUNK_OVERLAP = 40
+TOP_K = 20          # chunks retrieved per query
 MAX_HISTORY = 6     # last N messages sent to LLM
 NUM_CTX = 4096      # context window size
 NUM_PREDICT = 2048  # max response tokens
@@ -127,8 +132,8 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 | GET | `/auth/me` | Any | Working | Current user + role |
 | POST | `/chat/message` | Any | Working | Streams response via SSE — routes to Ollama or Anthropic based on model name |
 | GET | `/admin/documents` | Admin | Working | Lists PDFs from knowledge folder |
-| POST | `/admin/upload` | Admin | Working | Saves PDF, runs ingestion into ChromaDB |
-| DELETE | `/admin/documents/{name}` | Admin | Working | Deletes PDF and removes from ChromaDB |
+| POST | `/admin/upload` | Admin | Working | Saves PDF, runs parallel ingestion into Qdrant, triggers background enrichment |
+| DELETE | `/admin/documents/{name}` | Admin | Working | Deletes PDF and removes from Qdrant |
 | GET | `/admin/config` | Admin | Working | Returns active model + guidance |
 | POST | `/admin/config` | Admin | Working | Updates active model + guidance |
 | GET | `/admin/models` | Admin | Working | Lists installed Ollama models |
