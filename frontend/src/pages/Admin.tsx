@@ -46,8 +46,6 @@ export default function Admin() {
   useEffect(() => {
     fetchDocs()
     fetchEnrichmentStatus()
-    const id = setInterval(fetchEnrichmentStatus, 3000)
-    return () => clearInterval(id)
 
     fetch(`${API_URL}/admin/config`, { headers: authHeaders() })
       .then((r) => r.json())
@@ -58,6 +56,9 @@ export default function Admin() {
       .then((r) => r.json())
       .then((d) => setModels(d.models))
       .catch(() => {})
+
+    const id = setInterval(fetchEnrichmentStatus, 3000)
+    return () => clearInterval(id)
   }, [])
 
   function handleDrop(e: React.DragEvent) {
