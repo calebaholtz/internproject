@@ -20,6 +20,9 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - **Implicit metadata filtering**: Per-page chunking stores `source` and `page` on every chunk. The keyword search acts as an implicit section/appendix filter — asking about "Appendix A" or "Section 2.2" finds those chunks by exact string match, effectively filtering to that section without a separate filter step.
 - **Query expansion analogy**: Contextual Retrieval enriches chunks from the document side rather than expanding the query — closes the same gap between how users ask questions and how documents are written, from the opposite direction.
 - **Document management**: Upload, list, and delete PDFs via the admin panel — all wired to the backend and Qdrant
+- **MCP server** (`mcp_server.py`): A Model Context Protocol server mounted at `POST /mcp` (Streamable HTTP transport) alongside the REST API, in the same process. Lets external MCP clients (Claude Desktop, Claude Code, other agents) manage the knowledge base without going through the admin panel. Guarded by a shared-secret `MCP_API_KEY` — every request must send `Authorization: Bearer <MCP_API_KEY>` or gets a 401, enforced via Starlette middleware on the mounted sub-app (separate from the JWT scheme used by the REST routes). Six tools: `upload_text` (raw text, chunked/embedded/stored like a PDF but with `page: null`), `upload_pdf` (base64-encoded PDF bytes, reuses `ingest.ingest_file()` unchanged), `list_documents`, `delete_document` (also removes the on-disk file if present), `enrichment_status`, `query_knowledge` (wraps `rag.retrieve()`). Both upload tools trigger the same background enrichment thread pattern as `/admin/upload`. `upload_text` rejects `source_name` values ending in `.pdf` to avoid desyncing Qdrant chunks from the (nonexistent) disk file.
+- **`ingest_text()`** (`ingest.py`): Chunks and embeds raw text directly (no PDF/disk file required) — reuses `_chunk_text`, `_make_id`, and the same parallel-embedding pattern as `ingest_file()`. Chunks get `payload["page"] = None`; `rag.py`'s formatter renders this as `Page N/A` instead of the literal string `"None"`.
+- **Why FastAPI is pinned to `0.139.0` (not `0.115.0`)**: the `mcp` SDK requires `starlette>=0.48.0` on Python 3.14, which is incompatible with `fastapi==0.115.0`'s `starlette<0.39.0` ceiling — there is no starlette version that satisfies both. Do not downgrade FastAPI without also removing/replacing the MCP server, or main.py will fail to start (`TypeError: Router.__init__() got an unexpected keyword argument 'on_event'`-style breakage). The startup hook was also rewritten from `@app.on_event("startup")` to a `lifespan` context manager, which both preloads the Ollama model **and** starts the MCP session manager (`mcp_server.mcp_instance.session_manager.run()`) — the MCP session manager will not initialize if only mounted via `app.mount()` without also being entered in the app's own lifespan (Starlette does not propagate lifespan into mounted sub-apps).
 - **Persisted config**: Active model and guidance saved to `app_config.json` on disk — survives backend restarts
 - **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt
 - **Admin models**: Merges installed Ollama models + Claude models (if API key set); embedding models filtered out
@@ -63,7 +66,7 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 Cost per message = `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`
 
 ## Stack
-- **Backend**: Python 3.11+, FastAPI, ollama, anthropic, python-dotenv, qdrant-client, pypdf, psutil, python-jose, passlib, bcrypt
+- **Backend**: Python 3.11+ (developed/tested on 3.14), FastAPI, ollama, anthropic, python-dotenv, qdrant-client, pypdf, psutil, python-jose, passlib, bcrypt, `mcp[cli]` (Model Context Protocol server)
 - **Embeddings**: `nomic-embed-text` via Ollama (must be pulled before using RAG)
 - **Vector store**: Qdrant (persistent, stored in `qdrant_db/`) — supports hybrid dense + full-text search
 - **Frontend**: React 18, Vite, Tailwind CSS, Radix UI primitives, React Router, Lucide icons
@@ -82,8 +85,10 @@ qdrant_db/     Auto-generated vector store (gitignored)
 # Ollama must be running first
 ollama serve
 
-# Backend
+# Backend — uses a virtual environment (backend/.venv, gitignored)
 cd backend
+python -m venv .venv
+.venv\Scripts\activate      # Windows; use `source .venv/bin/activate` on macOS/Linux
 pip install -r requirements.txt
 python -m uvicorn main:app --reload
 
@@ -106,6 +111,8 @@ Default credentials:
 - Active model and guidance are persisted to `backend/app_config.json` — loaded on startup, saved on every config update
 - `app_config.json` is gitignored so each environment starts from `config.py` defaults until first save
 - Chat uses SSE streaming — frontend reads `data: {"content": "..."}` chunks and appends to the message, terminated by `data: [DONE]`
+- The `/mcp` endpoint uses a **separate auth scheme** from the rest of the API — a shared-secret `MCP_API_KEY` sent as `Authorization: Bearer <key>`, checked by Starlette middleware before any request reaches MCP dispatch. It is not a JWT and does not go through `auth.py`/`require_admin`.
+- `MCP_API_KEY` must be set in `backend/.env` (see `.env.example`) — an empty/unset key causes every MCP request to be rejected (fails closed, not open).
 
 ## config.py Reference
 ```python
@@ -123,6 +130,7 @@ NUM_CTX = 4096      # context window size
 NUM_PREDICT = 2048  # max response tokens
 SECRET_KEY = "change-me-before-deploying"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
+MCP_API_KEY = os.getenv("MCP_API_KEY", "")   # required for the MCP server — see backend/.env
 ```
 
 ## API Routes
@@ -140,5 +148,6 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 | POST | `/chat/clear` | Any | Working | Clears conversation history for current user |
 | GET | `/debug/stats` | Any | Working | Returns CPU%, RAM, active model (temp diagnostic) |
 | POST | `/debug/benchmark` | Any | Working | Runs 3 RAG prompts, returns timing and resource usage per prompt |
+| POST | `/mcp` | `MCP_API_KEY` (bearer, not JWT) | Working | MCP Streamable HTTP endpoint — six tools: `upload_text`, `upload_pdf`, `list_documents`, `delete_document`, `enrichment_status`, `query_knowledge`. Not a plain REST route — speaks MCP's JSON-RPC protocol. |
 
 ## Do not edit front end code without asking first

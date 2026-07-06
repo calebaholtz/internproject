@@ -45,7 +45,8 @@ def retrieve(query: str) -> str:
     for point in merged:
         source = point.payload.get("source", "unknown")
         page = point.payload.get("page", "?")
+        page_display = "N/A" if page is None else page
         text = point.payload.get("text", "")
-        parts.append(f"[Source: {source}, Page {page}]\n{text}")
+        parts.append(f"[Source: {source}, Page {page_display}]\n{text}")
 
     return "\n\n---\n\n".join(parts)

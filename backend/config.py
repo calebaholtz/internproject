@@ -3,6 +3,7 @@ import os
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+MCP_API_KEY = os.getenv("MCP_API_KEY", "")
 
 KNOWLEDGE_FOLDER = "./knowledge"
 QDRANT_PATH = "./qdrant_db"

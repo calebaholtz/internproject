@@ -64,6 +64,35 @@ def ingest_file(path: str):
         client.upsert(collection_name=COLLECTION, points=points)
 
 
+def ingest_text(text: str, source_name: str) -> int:
+    delete_file(source_name)
+
+    raw_chunks = [(idx, None, chunk) for idx, chunk in enumerate(_chunk_text(text))]
+
+    def _embed_chunk(item):
+        idx, page_num, chunk = item
+        embedding = ollama.embeddings(model=cfg.EMBEDDING_MODEL, prompt=chunk).embedding
+        return PointStruct(
+            id=_make_id(source_name, idx),
+            vector=embedding,
+            payload={"source": source_name, "page": page_num, "text": chunk, "enriched": False},
+        )
+
+    points = []
+    with ThreadPoolExecutor(max_workers=cfg.ENRICH_WORKERS) as executor:
+        futures = {executor.submit(_embed_chunk, item): item for item in raw_chunks}
+        for future in as_completed(futures):
+            try:
+                points.append(future.result())
+            except Exception:
+                pass
+
+    if points:
+        client.upsert(collection_name=COLLECTION, points=points)
+
+    return len(points)
+
+
 def _enrich_chunk(point, model: str):
     if point.payload.get("enriched"):
         return

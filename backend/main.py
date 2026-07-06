@@ -12,8 +12,10 @@ import psutil
 import os
 import time
 import threading
+import contextlib
 import ingest
 import rag
+import mcp_server
 
 CLAUDE_MODELS = [
     "claude-opus-4-8",
@@ -30,24 +32,24 @@ CLAUDE_PRICING = {
 def _is_claude(model: str) -> bool:
     return model.startswith("claude-")
 
-app = FastAPI(title="DocBot API")
-
-
-@app.on_event("startup")
-def warmup():
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
     model = _load_config().get("model", cfg.DEFAULT_MODEL)
-    if _is_claude(model):
-        return
-    try:
-        ollama.chat(
-            model=model,
-            messages=[{"role": "user", "content": "hi"}],
-            options={"num_predict": 1},
-            keep_alive=-1,
-        )
-    except Exception:
-        pass
+    if not _is_claude(model):
+        try:
+            ollama.chat(
+                model=model,
+                messages=[{"role": "user", "content": "hi"}],
+                options={"num_predict": 1},
+                keep_alive=-1,
+            )
+        except Exception:
+            pass
+    async with mcp_server.mcp_instance.session_manager.run():
+        yield
 
+
+app = FastAPI(title="DocBot API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,6 +58,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/mcp", mcp_server.mcp_app)
 
 CONFIG_FILE = "app_config.json"
 _default_config = {
