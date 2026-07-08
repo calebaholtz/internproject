@@ -4,11 +4,16 @@ import threading
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 import config as cfg
 import ingest
 import rag
 
-mcp_instance = FastMCP("knowledge-base", streamable_http_path="/")
+mcp_instance = FastMCP(
+    "knowledge-base",
+    streamable_http_path="/",
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+)
 
 
 class ApiKeyMiddleware(BaseHTTPMiddleware):
