@@ -3,6 +3,7 @@ import uuid
 import pypdf
 import ollama
 import config as cfg
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from qdrant_client.models import PointStruct, Filter, FieldCondition, MatchValue
 from db import client, COLLECTION
@@ -67,6 +68,7 @@ def ingest_file(path: str):
 def ingest_text(text: str, source_name: str) -> int:
     delete_file(source_name)
 
+    uploaded_at = datetime.now().strftime("%Y-%m-%d")
     raw_chunks = [(idx, None, chunk) for idx, chunk in enumerate(_chunk_text(text))]
 
     def _embed_chunk(item):
@@ -75,7 +77,13 @@ def ingest_text(text: str, source_name: str) -> int:
         return PointStruct(
             id=_make_id(source_name, idx),
             vector=embedding,
-            payload={"source": source_name, "page": page_num, "text": chunk, "enriched": False},
+            payload={
+                "source": source_name,
+                "page": page_num,
+                "text": chunk,
+                "enriched": False,
+                "uploaded_at": uploaded_at,
+            },
         )
 
     points = []
@@ -167,6 +175,22 @@ def get_chunk_counts() -> dict:
         source = p.payload.get("source", "unknown")
         counts[source] = counts.get(source, 0) + 1
     return counts
+
+
+def get_document_info() -> dict:
+    all_points, _ = client.scroll(
+        collection_name=COLLECTION,
+        limit=100000,
+        with_payload=True,
+        with_vectors=False,
+    )
+    info: dict[str, dict] = {}
+    for p in all_points:
+        source = p.payload.get("source", "unknown")
+        if source not in info:
+            info[source] = {"chunk_count": 0, "uploaded_at": p.payload.get("uploaded_at")}
+        info[source]["chunk_count"] += 1
+    return info
 
 
 def delete_file(filename: str):

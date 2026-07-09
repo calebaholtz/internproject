@@ -209,15 +209,19 @@ def enrichment_status(current_user: dict = Depends(require_admin)):
 @app.get("/admin/documents")
 def list_documents(current_user: dict = Depends(require_admin)):
     os.makedirs(cfg.KNOWLEDGE_FOLDER, exist_ok=True)
+    from datetime import datetime
+    doc_info = ingest.get_document_info()
     docs = []
-    for name in os.listdir(cfg.KNOWLEDGE_FOLDER):
-        if name.endswith(".pdf"):
-            path = os.path.join(cfg.KNOWLEDGE_FOLDER, name)
+    for source, info in doc_info.items():
+        path = os.path.join(cfg.KNOWLEDGE_FOLDER, source)
+        if source.endswith(".pdf") and os.path.exists(path):
             size_kb = os.path.getsize(path) // 1024
             mtime = os.path.getmtime(path)
-            from datetime import datetime
             uploaded = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
-            docs.append({"name": name, "size": f"{size_kb} KB", "uploaded": uploaded})
+            docs.append({"name": source, "size": f"{size_kb} KB", "uploaded": uploaded})
+        else:
+            uploaded = info.get("uploaded_at") or "N/A"
+            docs.append({"name": source, "size": f"{info['chunk_count']} chunks", "uploaded": uploaded})
     return {"documents": docs}
 
 
