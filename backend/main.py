@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -191,6 +191,32 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
 def clear_history(current_user: dict = Depends(get_current_user)):
     conversation_histories[current_user["username"]] = []
     return {"status": "ok"}
+
+
+class TeamsIngestRequest(BaseModel):
+    text: str
+    source_name: str | None = None
+
+
+@app.post("/webhook/teams-ingest")
+def teams_ingest(body: TeamsIngestRequest, authorization: str = Header(default="")):
+    from datetime import datetime
+
+    if not cfg.MCP_API_KEY or authorization != f"Bearer {cfg.MCP_API_KEY}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    source_name = body.source_name or f"teams-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    if source_name.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="source_name must not end in .pdf")
+
+    chunk_count = ingest.ingest_text(body.text, source_name)
+    threading.Thread(
+        target=ingest.enrich_file,
+        args=(source_name, cfg.ENRICH_MODEL),
+        daemon=True,
+    ).start()
+
+    return {"status": "ok", "source_name": source_name, "chunks_created": chunk_count}
 
 
 @app.get("/admin/chunks")
