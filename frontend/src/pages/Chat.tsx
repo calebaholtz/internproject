@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send } from 'lucide-react'
+import { Send, X } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import ChatMessage from '@/components/ChatMessage'
 import { API_URL } from '@/lib/api'
@@ -56,6 +56,7 @@ export default function Chat() {
   const [lastCost, setLastCost] = useState<number | null>(null)
   const [assessmentActive, setAssessmentActive] = useState(false)
   const [assessmentCompleted, setAssessmentCompleted] = useState(false)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pendingTextRef = useRef<string>('')
@@ -201,20 +202,27 @@ export default function Chat() {
     setStreaming(false)
   }
 
-  async function downloadAssessmentPdf() {
+  async function previewAssessmentPdf() {
     const token = localStorage.getItem('token')
     const res = await fetch(`${API_URL}/chat/assessment/pdf`, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
     if (!res.ok) return
     const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'azure-security-assessment.pdf'
-    a.click()
-    URL.revokeObjectURL(url)
+    setPdfPreviewUrl(URL.createObjectURL(blob))
   }
+
+  function closePdfPreview() {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
+    setPdfPreviewUrl(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -323,10 +331,10 @@ export default function Chat() {
           <div className="flex justify-end items-center gap-4 px-6 py-3 border-b border-white/[0.06]">
             {assessmentCompleted && (
               <button
-                onClick={downloadAssessmentPdf}
+                onClick={previewAssessmentPdf}
                 className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
               >
-                Download PDF Summary
+                View PDF Summary
               </button>
             )}
             <button
@@ -341,6 +349,7 @@ export default function Chat() {
                 setTotalTime(null)
                 setAssessmentActive(false)
                 setAssessmentCompleted(false)
+                closePdfPreview()
               }}
               className="text-xs text-gray-500 hover:text-white transition-colors"
             >
@@ -410,6 +419,29 @@ export default function Chat() {
         )}
 
       </div>
+
+      {pdfPreviewUrl && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-[#0c0c10] border border-white/10 rounded-2xl w-full max-w-3xl h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 shrink-0">
+              <h3 className="text-sm font-semibold text-white">Azure Security Risk Assessment</h3>
+              <div className="flex items-center gap-3">
+                <a
+                  href={pdfPreviewUrl}
+                  download="azure-security-assessment.pdf"
+                  className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                >
+                  Download
+                </a>
+                <button onClick={closePdfPreview} className="text-gray-400 hover:text-white transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <iframe src={pdfPreviewUrl} className="flex-1 w-full bg-white" title="Assessment PDF preview" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
