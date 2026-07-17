@@ -497,9 +497,10 @@ async def upload_document(
 @app.delete("/admin/documents/{name}")
 def delete_document(name: str, current_user: dict = Depends(require_admin)):
     path = os.path.join(cfg.KNOWLEDGE_FOLDER, name)
-    if not os.path.exists(path):
+    if not os.path.exists(path) and name not in ingest.get_document_info():
         raise HTTPException(status_code=404, detail="Document not found")
-    os.remove(path)
+    if os.path.exists(path):
+        os.remove(path)
     ingest.delete_file(name)
     return {"status": "ok"}
 
