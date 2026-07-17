@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, X } from 'lucide-react'
+import { Send, X, FileText } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import ChatMessage from '@/components/ChatMessage'
 import { API_URL } from '@/lib/api'
@@ -8,6 +8,7 @@ interface Message {
   id: number
   role: 'user' | 'assistant'
   content: string
+  showPdfCard?: boolean
 }
 
 interface Stats {
@@ -55,7 +56,6 @@ export default function Chat() {
   const [benchmark, setBenchmark] = useState<BenchmarkData | null>(null)
   const [lastCost, setLastCost] = useState<number | null>(null)
   const [assessmentActive, setAssessmentActive] = useState(false)
-  const [assessmentCompleted, setAssessmentCompleted] = useState(false)
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -178,7 +178,7 @@ export default function Chat() {
               setAssessmentActive(parsed.in_assessment)
             }
             if (parsed.assessment_completed) {
-              setAssessmentCompleted(true)
+              setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, showPdfCard: true } : m)))
             }
             if (parsed.content) {
               if (!started) {
@@ -202,14 +202,29 @@ export default function Chat() {
     setStreaming(false)
   }
 
-  async function previewAssessmentPdf() {
+  async function fetchAssessmentPdfBlob(): Promise<Blob | null> {
     const token = localStorage.getItem('token')
     const res = await fetch(`${API_URL}/chat/assessment/pdf`, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
-    if (!res.ok) return
-    const blob = await res.blob()
-    setPdfPreviewUrl(URL.createObjectURL(blob))
+    if (!res.ok) return null
+    return res.blob()
+  }
+
+  async function previewAssessmentPdf() {
+    const blob = await fetchAssessmentPdfBlob()
+    if (blob) setPdfPreviewUrl(URL.createObjectURL(blob))
+  }
+
+  async function downloadAssessmentPdf() {
+    const blob = await fetchAssessmentPdfBlob()
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'azure-security-assessment.pdf'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function closePdfPreview() {
@@ -329,14 +344,6 @@ export default function Chat() {
 
         {hasMessages && (
           <div className="flex justify-end items-center gap-4 px-6 py-3 border-b border-white/[0.06]">
-            {assessmentCompleted && (
-              <button
-                onClick={previewAssessmentPdf}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                View PDF Summary
-              </button>
-            )}
             <button
               onClick={async () => {
                 const token = localStorage.getItem('token')
@@ -348,7 +355,6 @@ export default function Chat() {
                 setTtft(null)
                 setTotalTime(null)
                 setAssessmentActive(false)
-                setAssessmentCompleted(false)
                 closePdfPreview()
               }}
               className="text-xs text-gray-500 hover:text-white transition-colors"
@@ -391,7 +397,32 @@ export default function Chat() {
           <>
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
               {messages.map((msg) => (
-                <ChatMessage key={msg.id} role={msg.role} content={msg.content} />
+                <div key={msg.id}>
+                  <ChatMessage role={msg.role} content={msg.content} />
+                  {msg.showPdfCard && (
+                    <div className="mt-2 ml-10 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 max-w-md">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-600/20 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4 text-indigo-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">Azure Security Risk Assessment.pdf</p>
+                        <p className="text-xs text-gray-500">Summary report</p>
+                      </div>
+                      <button
+                        onClick={previewAssessmentPdf}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-200 transition-colors shrink-0"
+                      >
+                        Preview
+                      </button>
+                      <button
+                        onClick={downloadAssessmentPdf}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shrink-0"
+                      >
+                        Download
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
 
               {loading && !streaming && (
