@@ -1,9 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Header
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from auth import authenticate_user, create_access_token, get_current_user, require_admin
+from fpdf import FPDF
+from datetime import datetime
 import ollama
 import anthropic
 import config as cfg
@@ -91,6 +93,10 @@ conversation_histories: dict[str, list] = {}
 # of a conversation that may have scrolled out of MAX_HISTORY)
 assessment_states: dict[str, dict] = {}
 
+# Most recently completed assessment per user, kept after assessment_states is
+# cleared so the PDF download route has real data to render
+completed_assessments: dict[str, dict] = {}
+
 ASSESSMENT_QUESTIONS = [
     {"id": 1, "type": "mc", "text": "Which Microsoft Azure subscription does your organization currently use?",
      "options": ["Free", "Pay-As-You-Go", "Microsoft 365 E3", "Microsoft 365 E5", "Azure AD Premium P1", "Azure AD Premium P2"]},
@@ -164,6 +170,45 @@ def _build_summary_table(answers: dict) -> str:
     return f"| Question | Your Answer |\n|---|---|\n{rows}"
 
 
+def _build_assessment_pdf(username: str, answers: dict, completed_at: str) -> bytes:
+    pdf = FPDF()
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "Azure Security Risk Assessment", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 6, f"Completed by: {username}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, f"Date: {completed_at}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(6)
+
+    pdf.set_text_color(0, 0, 0)
+    for qid, ans in sorted(answers.items()):
+        question = ASSESSMENT_QUESTIONS_BY_ID[qid]["text"]
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(0, 6, f"Q{qid}: {question}", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(40, 40, 40)
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(0, 6, f"Answer: {ans}", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(3)
+
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.set_text_color(100, 100, 100)
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(
+        0, 6,
+        "Responses have been captured for expert review. A dedicated team will "
+        "follow up with a custom report and prioritized recommendations.",
+        new_x="LMARGIN", new_y="NEXT",
+    )
+
+    return bytes(pdf.output())
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
@@ -231,7 +276,10 @@ def _stream_llm(system_message: str, messages: list[dict], response_holder: list
         yield f"data: {json.dumps({'cost': 0.0, 'input_tokens': None, 'output_tokens': None})}\n\n"
 
 
-def _sse_response(system_message: str, messages: list[dict], username: str) -> StreamingResponse:
+def _sse_response(
+    system_message: str, messages: list[dict], username: str,
+    in_assessment: bool = False, assessment_completed: bool = False,
+) -> StreamingResponse:
     def generate():
         full_response = []
         try:
@@ -241,15 +289,17 @@ def _sse_response(system_message: str, messages: list[dict], username: str) -> S
         finally:
             if full_response:
                 conversation_histories[username].append({"role": "assistant", "content": "".join(full_response)})
+        yield f"data: {json.dumps({'in_assessment': in_assessment, 'assessment_completed': assessment_completed})}\n\n"
         yield "data: [DONE]\n\n"
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-def _sse_static(text: str, username: str) -> StreamingResponse:
+def _sse_static(text: str, username: str, in_assessment: bool = False) -> StreamingResponse:
     def generate():
         yield f"data: {json.dumps({'content': text})}\n\n"
         conversation_histories[username].append({"role": "assistant", "content": text})
         yield f"data: {json.dumps({'cost': 0.0, 'input_tokens': None, 'output_tokens': None})}\n\n"
+        yield f"data: {json.dumps({'in_assessment': in_assessment, 'assessment_completed': False})}\n\n"
         yield "data: [DONE]\n\n"
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -279,7 +329,7 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
             "present this exact question, verbatim and unaltered (do not change the wording or options):\n\n"
             f"{_format_question(first_q)}"
         )
-        return _sse_response(app_config["guidance"], [{"role": "user", "content": instruction}], username)
+        return _sse_response(app_config["guidance"], [{"role": "user", "content": instruction}], username, in_assessment=True)
 
     state = assessment_states.get(username)
     if state is not None:
@@ -288,7 +338,7 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
         if current_q["type"] == "yesno":
             is_yes = _parse_yes_no(body.message)
             if is_yes is None:
-                return _sse_static("Sorry, I didn't catch that - could you answer with Yes or No?", username)
+                return _sse_static("Sorry, I didn't catch that - could you answer with Yes or No?", username, in_assessment=True)
             state["answers"][current_q["id"]] = "Yes" if is_yes else "No"
             next_id = _next_question_id(current_q["id"], is_yes)
         else:
@@ -304,10 +354,11 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
                 "or risk rating). Then present this exact next question, verbatim and unaltered (do not "
                 f"change the wording or options):\n\n{_format_question(next_q)}"
             )
-            return _sse_response(app_config["guidance"], [{"role": "user", "content": instruction}], username)
+            return _sse_response(app_config["guidance"], [{"role": "user", "content": instruction}], username, in_assessment=True)
 
         answers = state["answers"]
         del assessment_states[username]
+        completed_assessments[username] = {"answers": answers, "completed_at": datetime.now().strftime("%Y-%m-%d %H:%M")}
         summary_table = _build_summary_table(answers)
         instruction = (
             "The Azure Security Risk Assessment is now complete. Here is the user's real, captured data - "
@@ -317,7 +368,10 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
             "review and a dedicated team will follow up with a custom report and prioritized "
             "recommendations. Do not offer automated recommendations, risk scores, or next steps yourself."
         )
-        return _sse_response(app_config["guidance"], [{"role": "user", "content": instruction}], username)
+        return _sse_response(
+            app_config["guidance"], [{"role": "user", "content": instruction}], username,
+            in_assessment=False, assessment_completed=True,
+        )
 
     context = rag.retrieve(body.message)
     if context:
@@ -334,13 +388,27 @@ def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_use
     recent_history = conversation_histories[username][-cfg.MAX_HISTORY:]
     return _sse_response(system_message, recent_history, username)
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+
+@app.get("/chat/assessment/pdf")
+def download_assessment_pdf(current_user: dict = Depends(get_current_user)):
+    username = current_user["username"]
+    record = completed_assessments.get(username)
+    if not record:
+        raise HTTPException(status_code=404, detail="No completed assessment found")
+
+    pdf_bytes = _build_assessment_pdf(username, record["answers"], record["completed_at"])
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="azure-security-assessment-{username}.pdf"'},
+    )
 
 
 @app.post("/chat/clear")
 def clear_history(current_user: dict = Depends(get_current_user)):
     conversation_histories[current_user["username"]] = []
     assessment_states.pop(current_user["username"], None)
+    completed_assessments.pop(current_user["username"], None)
     return {"status": "ok"}
 
 
@@ -351,8 +419,6 @@ class TeamsIngestRequest(BaseModel):
 
 @app.post("/webhook/teams-ingest")
 def teams_ingest(body: TeamsIngestRequest, authorization: str = Header(default="")):
-    from datetime import datetime
-
     if not cfg.MCP_API_KEY or authorization != f"Bearer {cfg.MCP_API_KEY}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -386,7 +452,6 @@ def enrichment_status(current_user: dict = Depends(require_admin)):
 @app.get("/admin/documents")
 def list_documents(current_user: dict = Depends(require_admin)):
     os.makedirs(cfg.KNOWLEDGE_FOLDER, exist_ok=True)
-    from datetime import datetime
     doc_info = ingest.get_document_info()
     docs = []
     for source, info in doc_info.items():

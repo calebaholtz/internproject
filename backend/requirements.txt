@@ -10,3 +10,4 @@ pypdf
 anthropic
 python-dotenv
 mcp[cli]==1.28.1
+fpdf2==2.8.7

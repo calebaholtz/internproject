@@ -54,6 +54,8 @@ export default function Chat() {
   const [benchmarking, setBenchmarking] = useState(false)
   const [benchmark, setBenchmark] = useState<BenchmarkData | null>(null)
   const [lastCost, setLastCost] = useState<number | null>(null)
+  const [assessmentActive, setAssessmentActive] = useState(false)
+  const [assessmentCompleted, setAssessmentCompleted] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pendingTextRef = useRef<string>('')
@@ -171,6 +173,12 @@ export default function Chat() {
             if (parsed.cost !== undefined) {
               setLastCost(parsed.cost)
             }
+            if (parsed.in_assessment !== undefined) {
+              setAssessmentActive(parsed.in_assessment)
+            }
+            if (parsed.assessment_completed) {
+              setAssessmentCompleted(true)
+            }
             if (parsed.content) {
               if (!started) {
                 started = true
@@ -191,6 +199,21 @@ export default function Chat() {
     setTotalTime(parseFloat(((performance.now() - sendTime) / 1000).toFixed(2)))
     setLoading(false)
     setStreaming(false)
+  }
+
+  async function downloadAssessmentPdf() {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${API_URL}/chat/assessment/pdf`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    if (!res.ok) return
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'azure-security-assessment.pdf'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -218,7 +241,7 @@ export default function Chat() {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Ask a question about your documents..."
+        placeholder={assessmentActive ? 'Answer the question above...' : 'Ask a question about your documents...'}
         autoFocus
         rows={1}
         className="flex-1 min-h-[48px] max-h-40 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-track]:my-2 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-clip-padding"
@@ -297,7 +320,15 @@ export default function Chat() {
       <div className="flex flex-col flex-1 min-w-0">
 
         {hasMessages && (
-          <div className="flex justify-end px-6 py-3 border-b border-white/[0.06]">
+          <div className="flex justify-end items-center gap-4 px-6 py-3 border-b border-white/[0.06]">
+            {assessmentCompleted && (
+              <button
+                onClick={downloadAssessmentPdf}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                Download PDF Summary
+              </button>
+            )}
             <button
               onClick={async () => {
                 const token = localStorage.getItem('token')
@@ -308,6 +339,8 @@ export default function Chat() {
                 setMessages([])
                 setTtft(null)
                 setTotalTime(null)
+                setAssessmentActive(false)
+                setAssessmentCompleted(false)
               }}
               className="text-xs text-gray-500 hover:text-white transition-colors"
             >
