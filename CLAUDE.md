@@ -29,6 +29,7 @@ A local web-based chatbot. Users log in and chat with an Ollama LLM grounded in 
 - **Admin config**: GET and POST `/admin/config` read/write the active model and guidance prompt
 - **Admin models**: Merges installed Ollama models + Claude models (if API key set); embedding models filtered out
 - **Frontend chat**: Auto-resizing textarea, Enter to send, Shift+Enter for newline, Tab for 3-space indent, custom styled scrollbar, streaming message rendering, markdown rendering with bullet points
+- **Suggestion bubbles** (`Chat.tsx`): Two clickable buttons on the empty-chat state — "Start the Azure Security Risk Assessment" and "Explain insider threat risks" — defined in `SUGGESTIONS`. Clicking one calls the same `sendMessage()` used by the text input, pre-loaded with the trigger phrase, so it's functionally identical to typing it (not a cosmetic shortcut). `handleSend` (form submit) and the bubbles both call the shared `sendMessage(text)` function, refactored out of the original single `handleSend` body.
 - **Frontend admin**: Model dropdown and guidance prompt wired to backend; document list loads from disk on mount; model dropdown auto-saves immediately on change
 - **Sidebar document list**: Pulls real document list from backend, refreshes on navigation, shows "No documents uploaded" when empty
 - **Stream error display**: Errors from the backend stream are shown in the chat bubble instead of silently disappearing

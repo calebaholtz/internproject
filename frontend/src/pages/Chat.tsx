@@ -38,6 +38,11 @@ interface BenchmarkData {
   results: BenchmarkResult[]
 }
 
+const SUGGESTIONS = [
+  { label: 'Start the Azure Security Risk Assessment', message: 'start the azure security questionnaire' },
+  { label: 'Explain insider threat risks', message: 'explain insider threat risks' },
+]
+
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -107,10 +112,16 @@ export default function Chat() {
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     if (!input.trim() || loading) return
-
-    const userMessage: Message = { id: Date.now(), role: 'user', content: input.trim() }
-    setMessages((prev) => [...prev, userMessage])
+    const text = input.trim()
     setInput('')
+    await sendMessage(text)
+  }
+
+  async function sendMessage(text: string) {
+    if (!text.trim() || loading) return
+
+    const userMessage: Message = { id: Date.now(), role: 'user', content: text.trim() }
+    setMessages((prev) => [...prev, userMessage])
     setLoading(true)
     textareaRef.current?.focus()
     setStreaming(false)
@@ -317,6 +328,19 @@ export default function Chat() {
               </div>
               <h2 className="text-2xl font-semibold text-white mb-2">What do you want to know?</h2>
               <p className="text-sm text-gray-500">Ask anything about the documents in your knowledge base.</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2 max-w-2xl">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => sendMessage(s.message)}
+                  disabled={loading}
+                  className="px-4 py-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-sm text-gray-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {s.label}
+                </button>
+              ))}
             </div>
             {inputBar}
           </div>
