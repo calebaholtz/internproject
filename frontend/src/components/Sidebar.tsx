@@ -37,7 +37,7 @@ export default function Sidebar() {
         </div>
         <div className="min-w-0">
           <h1 className="text-lg font-semibold text-white truncate">{appName}</h1>
-          <p className="text-xs text-gray-400">Knowledge Base Assistant</p>
+          <p className="text-xs text-gray-400">Real Projects. Real Missions. Real Impact.</p>
         </div>
       </div>
 

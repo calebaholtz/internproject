@@ -132,7 +132,7 @@ export default function Login() {
             <img src="/ats-logo.jpg" alt="Company logo" className="h-6 w-auto" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">{appName}</h1>
-          <p className="text-sm text-gray-400 mt-1">Knowledge base assistant</p>
+          <p className="text-sm text-gray-400 mt-1">Real Projects. Real Missions. Real Impact.</p>
         </div>
 
         <div className="rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-2xl p-8 shadow-2xl">
