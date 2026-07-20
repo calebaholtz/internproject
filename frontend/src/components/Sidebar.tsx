@@ -4,12 +4,14 @@ import { MessageSquare, Shield, LogOut, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { API_URL } from '@/lib/api'
+import { useBranding } from '@/lib/useBranding'
 
 export default function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const role = localStorage.getItem('role')
   const [docs, setDocs] = useState<string[]>([])
+  const { appName } = useBranding()
 
   useEffect(() => {
     if (role !== 'admin') return
@@ -29,9 +31,14 @@ export default function Sidebar() {
 
   return (
     <div className="flex flex-col h-full w-64 bg-gray-900 text-gray-100 p-4 gap-2">
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold text-white">DocBot</h1>
-        <p className="text-xs text-gray-400">Knowledge Base Assistant</p>
+      <div className="mb-4 flex items-center gap-2.5">
+        <div className="bg-white rounded-md p-1.5 shrink-0">
+          <img src="/ats-logo.jpg" alt="Company logo" className="h-4 w-auto" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-white truncate">{appName}</h1>
+          <p className="text-xs text-gray-400">Knowledge Base Assistant</p>
+        </div>
       </div>
 
       <nav className="flex flex-col gap-1">
@@ -40,7 +47,7 @@ export default function Sidebar() {
           className={cn(
             'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left',
             location.pathname === '/chat'
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-accent-600 text-white'
               : 'text-gray-300 hover:bg-gray-800'
           )}
         >
@@ -54,7 +61,7 @@ export default function Sidebar() {
             className={cn(
               'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left',
               location.pathname === '/admin'
-                ? 'bg-indigo-600 text-white'
+                ? 'bg-accent-600 text-white'
                 : 'text-gray-300 hover:bg-gray-800'
             )}
           >

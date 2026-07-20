@@ -23,6 +23,8 @@ export default function Admin() {
   const [model, setModel] = useState('llama3.2')
   const [models, setModels] = useState<string[]>([])
   const [guidance, setGuidance] = useState('')
+  const [appName, setAppName] = useState('DocBot')
+  const [theme, setTheme] = useState('indigo')
   const [saved, setSaved] = useState(false)
   const [enrichmentStatus, setEnrichmentStatus] = useState<Record<string, { total: number; enriched: number; done: boolean }>>({})
   const fileRef = useRef<HTMLInputElement>(null)
@@ -49,7 +51,7 @@ export default function Admin() {
 
     fetch(`${API_URL}/admin/config`, { headers: authHeaders() })
       .then((r) => r.json())
-      .then((d) => { setModel(d.model); setGuidance(d.guidance) })
+      .then((d) => { setModel(d.model); setGuidance(d.guidance); setAppName(d.app_name || 'DocBot'); setTheme(d.theme || 'indigo') })
       .catch(() => {})
 
     fetch(`${API_URL}/admin/models`, { headers: authHeaders() })
@@ -103,10 +105,22 @@ export default function Admin() {
       await fetch(`${API_URL}/admin/config`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ model, guidance }),
+        body: JSON.stringify({ model, guidance, app_name: appName }),
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+    } catch {}
+  }
+
+  async function handleThemeChange(newTheme: string) {
+    setTheme(newTheme)
+    document.documentElement.setAttribute('data-theme', newTheme)
+    try {
+      await fetch(`${API_URL}/admin/config`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ theme: newTheme }),
+      })
     } catch {}
   }
 
@@ -121,6 +135,58 @@ export default function Admin() {
         </header>
 
         <div className="p-6 space-y-5 max-w-3xl">
+
+          {/* Branding */}
+          <section className="rounded-xl border border-white/[0.08] bg-white/[0.03] overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/[0.06]">
+              <h3 className="text-sm font-semibold text-white">Branding</h3>
+              <p className="text-xs text-gray-500 mt-0.5">App name and color theme</p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">App Name</label>
+                <input
+                  type="text"
+                  value={appName}
+                  onChange={(e) => setAppName(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-accent-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Theme</label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleThemeChange('indigo')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm transition-colors',
+                      theme === 'indigo'
+                        ? 'border-indigo-500 bg-indigo-500/10 text-white'
+                        : 'border-white/10 text-gray-400 hover:border-white/20'
+                    )}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-indigo-600 shrink-0" />
+                    Indigo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleThemeChange('orange')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm transition-colors',
+                      theme === 'orange'
+                        ? 'border-[#e16839] bg-[#e16839]/10 text-white'
+                        : 'border-white/10 text-gray-400 hover:border-white/20'
+                    )}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-[#e16839] shrink-0" />
+                    ATS Orange
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
 
           {/* Knowledge Base */}
           <section className="rounded-xl border border-white/[0.08] bg-white/[0.03] overflow-hidden">
@@ -139,7 +205,7 @@ export default function Admin() {
                 className={cn(
                   'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors',
                   dragging
-                    ? 'border-indigo-500 bg-indigo-500/10'
+                    ? 'border-accent-500 bg-accent-500/10'
                     : 'border-white/10 hover:border-white/20 hover:bg-white/[0.02]'
                 )}
               >
@@ -226,7 +292,7 @@ export default function Admin() {
                         body: JSON.stringify({ model: newModel }),
                       }).catch(() => {})
                     }}
-                    className="w-full h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white appearance-none focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                    className="w-full h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white appearance-none focus:outline-none focus:ring-1 focus:ring-accent-500 cursor-pointer"
                   >
                     {models.map((m) => {
                       const descriptions: Record<string, string> = {
@@ -254,14 +320,14 @@ export default function Admin() {
                   value={guidance}
                   onChange={(e) => setGuidance(e.target.value)}
                   rows={4}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none placeholder:text-gray-600"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-accent-500 resize-none placeholder:text-gray-600"
                 />
                 <p className="text-xs text-gray-600">Shapes how the AI responds — tone, focus, and constraints.</p>
               </div>
 
               <button
                 onClick={handleSaveConfig}
-                className="h-9 px-5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20"
+                className="h-9 px-5 rounded-lg bg-accent-600 hover:bg-accent-500 text-white text-sm font-medium transition-colors shadow-lg shadow-accent-500/20"
               >
                 {saved ? 'Saved!' : 'Save Configuration'}
               </button>

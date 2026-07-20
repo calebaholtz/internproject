@@ -267,12 +267,12 @@ export default function Chat() {
         placeholder={assessmentActive ? 'Answer the question above...' : 'How can I help you today?'}
         autoFocus
         rows={1}
-        className="flex-1 min-h-[48px] max-h-40 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-track]:my-2 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-clip-padding"
+        className="flex-1 min-h-[48px] max-h-40 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-accent-500 focus:border-accent-500 transition-colors resize-none overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-track]:my-2 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-clip-padding"
       />
       <button
         type="submit"
         disabled={loading || !input.trim()}
-        className="h-12 w-12 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+        className="h-12 w-12 rounded-xl bg-accent-600 hover:bg-accent-500 flex items-center justify-center text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
       >
         <Send className="w-4 h-4" />
       </button>
@@ -368,7 +368,7 @@ export default function Chat() {
           /* Centered empty state */
           <div className="flex flex-col flex-1 items-center justify-center px-6 gap-8">
             <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-500/20">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent-600 mb-4 shadow-lg shadow-accent-500/20">
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -401,8 +401,8 @@ export default function Chat() {
                   <ChatMessage role={msg.role} content={msg.content} />
                   {msg.showPdfCard && (
                     <div className="mt-2 ml-10 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 max-w-md">
-                      <div className="w-9 h-9 rounded-lg bg-indigo-600/20 flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4 text-indigo-400" />
+                      <div className="w-9 h-9 rounded-lg bg-accent-600/20 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4 text-accent-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white truncate">Azure Security Risk Assessment.pdf</p>
@@ -416,7 +416,7 @@ export default function Chat() {
                       </button>
                       <button
                         onClick={downloadAssessmentPdf}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shrink-0"
+                        className="text-xs px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-500 text-white transition-colors shrink-0"
                       >
                         Download
                       </button>
@@ -460,7 +460,7 @@ export default function Chat() {
                 <a
                   href={pdfPreviewUrl}
                   download="azure-security-assessment.pdf"
-                  className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-lg bg-accent-600 hover:bg-accent-500 text-white transition-colors"
                 >
                   Download
                 </a>

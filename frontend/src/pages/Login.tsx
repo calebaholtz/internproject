@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { API_URL } from '@/lib/api'
+import { useBranding } from '@/lib/useBranding'
 
 const WAVES = [
   { color: [99,  102, 241], alpha: 0.45, speed: 0.4,  amplitude: 90,  frequency: 0.007, yRatio: 0.55 },
@@ -70,6 +71,7 @@ function WaveCanvas() {
 
 export default function Login() {
   const navigate = useNavigate()
+  const { appName } = useBranding()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
@@ -115,13 +117,10 @@ export default function Login() {
       {/* Card */}
       <div className="relative z-10 w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-indigo-600 mb-5 shadow-lg shadow-indigo-500/30">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
+          <div className="inline-flex items-center justify-center bg-white rounded-xl mb-5 shadow-lg shadow-accent-500/30 p-3">
+            <img src="/ats-logo.jpg" alt="Company logo" className="h-6 w-auto" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">DocBot</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">{appName}</h1>
           <p className="text-sm text-gray-400 mt-1">Knowledge base assistant</p>
         </div>
 
@@ -135,7 +134,7 @@ export default function Login() {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="admin or user"
                 required
-                className="w-full h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                className="w-full h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-accent-500 focus:border-accent-500 transition-colors"
               />
             </div>
 
@@ -147,7 +146,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                className="w-full h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-accent-500 focus:border-accent-500 transition-colors"
               />
             </div>
 
@@ -160,7 +159,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              className="w-full h-10 rounded-lg bg-accent-600 hover:bg-accent-500 text-white text-sm font-medium transition-colors shadow-lg shadow-accent-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>

@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from auth import authenticate_user, create_access_token, get_current_user, require_admin
 from fpdf import FPDF
+from fpdf.fonts import FontFace
 from datetime import datetime
 import ollama
 import anthropic
@@ -68,6 +69,8 @@ CONFIG_FILE = "app_config.json"
 _default_config = {
     "model": cfg.DEFAULT_MODEL,
     "guidance": "Answer questions accurately and concisely. If you don't know, say so.",
+    "app_name": "DocBot",
+    "theme": "indigo",
 }
 
 def _load_config() -> dict:
@@ -170,40 +173,76 @@ def _build_summary_table(answers: dict) -> str:
     return f"| Question | Your Answer |\n|---|---|\n{rows}"
 
 
+THEME_COLORS = {
+    "indigo": (79, 70, 229),
+    "orange": (225, 104, 57),
+}
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "ats-logo.jpg")
+
+
+class _AssessmentPDF(FPDF):
+    accent_color = THEME_COLORS["indigo"]
+
+    def header(self):
+        self.set_fill_color(*self.accent_color)
+        self.rect(0, 0, self.w, 24, style="F")
+        if os.path.exists(LOGO_PATH):
+            self.set_fill_color(255, 255, 255)
+            self.rect(10, 5, 32, 14, style="F")
+            self.image(LOGO_PATH, x=11.5, y=7.5, w=29)
+        self.set_xy(48, 6)
+        self.set_font("Helvetica", "B", 14)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 6, "Azure Security Risk Assessment", new_x="LMARGIN", new_y="NEXT")
+        self.set_xy(48, 13)
+        self.set_font("Helvetica", "", 9)
+        self.cell(0, 5, "Summary Report", new_x="LMARGIN", new_y="NEXT")
+        self.set_y(30)
+        self.set_text_color(0, 0, 0)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "I", 8)
+        self.set_text_color(140, 140, 140)
+        self.cell(0, 10, f"Page {self.page_no()}", align="C")
+
+
 def _build_assessment_pdf(username: str, answers: dict, completed_at: str) -> bytes:
-    pdf = FPDF()
+    accent = THEME_COLORS.get(app_config.get("theme", "indigo"), THEME_COLORS["indigo"])
+
+    pdf = _AssessmentPDF()
+    pdf.accent_color = accent
     pdf.add_page()
 
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "Azure Security Risk Assessment", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(100, 100, 100)
+    pdf.set_text_color(90, 90, 90)
     pdf.cell(0, 6, f"Completed by: {username}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 6, f"Date: {completed_at}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(6)
-
-    pdf.set_text_color(0, 0, 0)
-    for qid, ans in sorted(answers.items()):
-        question = ASSESSMENT_QUESTIONS_BY_ID[qid]["text"]
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.set_x(pdf.l_margin)
-        pdf.multi_cell(0, 6, f"Q{qid}: {question}", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 10)
-        pdf.set_text_color(40, 40, 40)
-        pdf.set_x(pdf.l_margin)
-        pdf.multi_cell(0, 6, f"Answer: {ans}", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_text_color(0, 0, 0)
-        pdf.ln(3)
-
     pdf.ln(4)
+
+    heading_style = FontFace(emphasis="BOLD", color=255, fill_color=accent)
+    with pdf.table(
+        col_widths=(65, 35),
+        text_align=("LEFT", "LEFT"),
+        headings_style=heading_style,
+        line_height=6,
+        padding=2,
+    ) as table:
+        header_row = table.row()
+        header_row.cell("Question")
+        header_row.cell("Answer")
+        for qid, ans in sorted(answers.items()):
+            row = table.row()
+            row.cell(f"Q{qid}: {ASSESSMENT_QUESTIONS_BY_ID[qid]['text']}")
+            row.cell(str(ans))
+
+    pdf.ln(6)
     pdf.set_font("Helvetica", "I", 9)
     pdf.set_text_color(100, 100, 100)
-    pdf.set_x(pdf.l_margin)
     pdf.multi_cell(
         0, 6,
         "Responses have been captured for expert review. A dedicated team will "
         "follow up with a custom report and prioritized recommendations.",
-        new_x="LMARGIN", new_y="NEXT",
     )
 
     return bytes(pdf.output())
@@ -222,6 +261,8 @@ class ChatRequest(BaseModel):
 class ConfigUpdate(BaseModel):
     model: str | None = None
     guidance: str | None = None
+    app_name: str | None = None
+    theme: str | None = None
 
 
 @app.post("/auth/login", response_model=TokenResponse)
@@ -528,8 +569,22 @@ def update_config(body: ConfigUpdate, current_user: dict = Depends(require_admin
         app_config["model"] = body.model
     if body.guidance is not None:
         app_config["guidance"] = body.guidance
+    if body.app_name is not None:
+        app_config["app_name"] = body.app_name
+    if body.theme is not None:
+        if body.theme not in ("indigo", "orange"):
+            raise HTTPException(status_code=400, detail="theme must be 'indigo' or 'orange'")
+        app_config["theme"] = body.theme
     _save_config()
     return {"status": "ok"}
+
+
+@app.get("/branding")
+def get_branding():
+    return {
+        "app_name": app_config.get("app_name", "DocBot"),
+        "theme": app_config.get("theme", "indigo"),
+    }
 
 
 @app.get("/debug/stats")

@@ -15,7 +15,7 @@ export default function ChatMessage({ role, content }: Props) {
       <div
         className={cn(
           'flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold',
-          isUser ? 'bg-indigo-600 text-white' : 'bg-white/10 text-gray-400'
+          isUser ? 'bg-accent-600 text-white' : 'bg-white/10 text-gray-400'
         )}
       >
         {isUser ? 'U' : 'AI'}
@@ -24,7 +24,7 @@ export default function ChatMessage({ role, content }: Props) {
         className={cn(
           'px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[85%]',
           isUser
-            ? 'bg-indigo-600 text-white rounded-tr-sm'
+            ? 'bg-accent-600 text-white rounded-tr-sm'
             : 'bg-white/[0.05] border border-white/[0.08] text-gray-200 rounded-tl-sm'
         )}
       >
