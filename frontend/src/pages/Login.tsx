@@ -4,15 +4,25 @@ import axios from 'axios'
 import { API_URL } from '@/lib/api'
 import { useBranding } from '@/lib/useBranding'
 
-const WAVES = [
-  { color: [99,  102, 241], alpha: 0.45, speed: 0.4,  amplitude: 90,  frequency: 0.007, yRatio: 0.55 },
-  { color: [139,  92, 246], alpha: 0.35, speed: 0.65, amplitude: 70,  frequency: 0.010, yRatio: 0.62 },
-  { color: [59,  130, 246], alpha: 0.28, speed: 0.25, amplitude: 110, frequency: 0.005, yRatio: 0.48 },
-  { color: [168,  85, 247], alpha: 0.22, speed: 0.85, amplitude: 55,  frequency: 0.013, yRatio: 0.70 },
-  { color: [79,  70,  229], alpha: 0.18, speed: 0.55, amplitude: 80,  frequency: 0.009, yRatio: 0.40 },
-]
+const WAVE_THEMES: Record<string, { color: number[]; alpha: number; speed: number; amplitude: number; frequency: number; yRatio: number }[]> = {
+  indigo: [
+    { color: [99,  102, 241], alpha: 0.45, speed: 0.4,  amplitude: 90,  frequency: 0.007, yRatio: 0.55 },
+    { color: [139,  92, 246], alpha: 0.35, speed: 0.65, amplitude: 70,  frequency: 0.010, yRatio: 0.62 },
+    { color: [59,  130, 246], alpha: 0.28, speed: 0.25, amplitude: 110, frequency: 0.005, yRatio: 0.48 },
+    { color: [168,  85, 247], alpha: 0.22, speed: 0.85, amplitude: 55,  frequency: 0.013, yRatio: 0.70 },
+    { color: [79,  70,  229], alpha: 0.18, speed: 0.55, amplitude: 80,  frequency: 0.009, yRatio: 0.40 },
+  ],
+  // Drawn from the ATS logo's actual colors: brand orange, gray, and a deeper burnt-orange/amber for depth
+  orange: [
+    { color: [225, 104, 57],  alpha: 0.45, speed: 0.4,  amplitude: 90,  frequency: 0.007, yRatio: 0.55 },
+    { color: [235, 150, 110], alpha: 0.35, speed: 0.65, amplitude: 70,  frequency: 0.010, yRatio: 0.62 },
+    { color: [150, 150, 155], alpha: 0.28, speed: 0.25, amplitude: 110, frequency: 0.005, yRatio: 0.48 },
+    { color: [194, 65,  12],  alpha: 0.22, speed: 0.85, amplitude: 55,  frequency: 0.013, yRatio: 0.70 },
+    { color: [217, 119, 6],   alpha: 0.18, speed: 0.55, amplitude: 80,  frequency: 0.009, yRatio: 0.40 },
+  ],
+}
 
-function WaveCanvas() {
+function WaveCanvas({ theme }: { theme: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -21,6 +31,7 @@ function WaveCanvas() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    const waves = WAVE_THEMES[theme] || WAVE_THEMES.indigo
     let animId: number
     let t = 0
 
@@ -33,7 +44,7 @@ function WaveCanvas() {
       const { width, height } = canvas!
       ctx!.clearRect(0, 0, width, height)
 
-      for (const w of WAVES) {
+      for (const w of waves) {
         ctx!.beginPath()
         ctx!.moveTo(0, height)
 
@@ -64,14 +75,14 @@ function WaveCanvas() {
       cancelAnimationFrame(animId)
       window.removeEventListener('resize', resize)
     }
-  }, [])
+  }, [theme])
 
   return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 }
 
 export default function Login() {
   const navigate = useNavigate()
-  const { appName } = useBranding()
+  const { appName, theme } = useBranding()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
@@ -102,7 +113,7 @@ export default function Login() {
     <div className="relative min-h-screen bg-[#05050a] overflow-hidden flex items-center justify-center p-4">
 
       {/* Animated wave canvas */}
-      <WaveCanvas />
+      <WaveCanvas theme={theme} />
 
       {/* Subtle grid overlay */}
       <div
