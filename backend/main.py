@@ -177,6 +177,9 @@ THEME_COLORS = {
     "indigo": (79, 70, 229),
     "orange": (225, 104, 57),
 }
+PDF_DARK = (30, 30, 32)
+PDF_GRAY = (110, 110, 115)
+PDF_LIGHT_GRAY = (240, 240, 241)
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "ats-logo.jpg")
 
 
@@ -184,27 +187,31 @@ class _AssessmentPDF(FPDF):
     accent_color = THEME_COLORS["indigo"]
 
     def header(self):
-        self.set_fill_color(*self.accent_color)
-        self.rect(0, 0, self.w, 24, style="F")
+        # Small letterhead-style logo, top-left - no color blocks, just a clean corporate header
         if os.path.exists(LOGO_PATH):
-            self.set_fill_color(255, 255, 255)
-            self.rect(10, 5, 32, 14, style="F")
-            self.image(LOGO_PATH, x=11.5, y=7.5, w=29)
-        self.set_xy(48, 6)
-        self.set_font("Helvetica", "B", 14)
-        self.set_text_color(255, 255, 255)
-        self.cell(0, 6, "Azure Security Risk Assessment", new_x="LMARGIN", new_y="NEXT")
-        self.set_xy(48, 13)
-        self.set_font("Helvetica", "", 9)
-        self.cell(0, 5, "Summary Report", new_x="LMARGIN", new_y="NEXT")
-        self.set_y(30)
-        self.set_text_color(0, 0, 0)
+            self.image(LOGO_PATH, x=10, y=10, w=26)
+        self.set_xy(0, 12)
+        self.set_font("Helvetica", "B", 16)
+        self.set_text_color(*PDF_DARK)
+        self.cell(self.w - 10, 8, "Azure Security Risk Assessment", align="R")
+        self.set_xy(0, 20)
+        self.set_font("Helvetica", "", 10)
+        self.set_text_color(*PDF_GRAY)
+        self.cell(self.w - 10, 6, "Summary Report", align="R")
+        # single thin accent rule - the only spot of color on the page
+        self.set_draw_color(*self.accent_color)
+        self.set_line_width(0.8)
+        self.line(10, 32, self.w - 10, 32)
+        self.set_y(40)
 
     def footer(self):
+        self.set_draw_color(220, 220, 220)
+        self.set_line_width(0.2)
+        self.line(10, self.h - 18, self.w - 10, self.h - 18)
         self.set_y(-15)
-        self.set_font("Helvetica", "I", 8)
-        self.set_text_color(140, 140, 140)
-        self.cell(0, 10, f"Page {self.page_no()}", align="C")
+        self.set_font("Helvetica", "", 8)
+        self.set_text_color(*PDF_GRAY)
+        self.cell(0, 10, f"Confidential  |  Page {self.page_no()}", align="C")
 
 
 def _build_assessment_pdf(username: str, answers: dict, completed_at: str) -> bytes:
@@ -215,18 +222,19 @@ def _build_assessment_pdf(username: str, answers: dict, completed_at: str) -> by
     pdf.add_page()
 
     pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(90, 90, 90)
+    pdf.set_text_color(*PDF_GRAY)
     pdf.cell(0, 6, f"Completed by: {username}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 6, f"Date: {completed_at}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(4)
+    pdf.ln(5)
 
-    heading_style = FontFace(emphasis="BOLD", color=255, fill_color=accent)
+    heading_style = FontFace(emphasis="BOLD", color=PDF_DARK, fill_color=PDF_LIGHT_GRAY)
     with pdf.table(
         col_widths=(65, 35),
         text_align=("LEFT", "LEFT"),
         headings_style=heading_style,
         line_height=6,
         padding=2,
+        borders_layout="HORIZONTAL_LINES",
     ) as table:
         header_row = table.row()
         header_row.cell("Question")
@@ -238,7 +246,7 @@ def _build_assessment_pdf(username: str, answers: dict, completed_at: str) -> by
 
     pdf.ln(6)
     pdf.set_font("Helvetica", "I", 9)
-    pdf.set_text_color(100, 100, 100)
+    pdf.set_text_color(*PDF_GRAY)
     pdf.multi_cell(
         0, 6,
         "Responses have been captured for expert review. A dedicated team will "
