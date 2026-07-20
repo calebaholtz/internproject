@@ -12,13 +12,13 @@ const WAVE_THEMES: Record<string, { color: number[]; alpha: number; speed: numbe
     { color: [168,  85, 247], alpha: 0.22, speed: 0.85, amplitude: 55,  frequency: 0.013, yRatio: 0.70 },
     { color: [79,  70,  229], alpha: 0.18, speed: 0.55, amplitude: 80,  frequency: 0.009, yRatio: 0.40 },
   ],
-  // Drawn from the ATS logo's actual colors: brand orange, gray, and a deeper burnt-orange/amber for depth
+  // One orange wave (the ATS brand color) plus grays and whites for contrast between layers
   orange: [
     { color: [225, 104, 57],  alpha: 0.45, speed: 0.4,  amplitude: 90,  frequency: 0.007, yRatio: 0.55 },
-    { color: [235, 150, 110], alpha: 0.35, speed: 0.65, amplitude: 70,  frequency: 0.010, yRatio: 0.62 },
-    { color: [150, 150, 155], alpha: 0.28, speed: 0.25, amplitude: 110, frequency: 0.005, yRatio: 0.48 },
-    { color: [194, 65,  12],  alpha: 0.22, speed: 0.85, amplitude: 55,  frequency: 0.013, yRatio: 0.70 },
-    { color: [217, 119, 6],   alpha: 0.18, speed: 0.55, amplitude: 80,  frequency: 0.009, yRatio: 0.40 },
+    { color: [255, 255, 255], alpha: 0.15, speed: 0.65, amplitude: 70,  frequency: 0.010, yRatio: 0.62 },
+    { color: [140, 142, 148], alpha: 0.28, speed: 0.25, amplitude: 110, frequency: 0.005, yRatio: 0.48 },
+    { color: [255, 255, 255], alpha: 0.12, speed: 0.85, amplitude: 55,  frequency: 0.013, yRatio: 0.70 },
+    { color: [90,  92,  96],  alpha: 0.20, speed: 0.55, amplitude: 80,  frequency: 0.009, yRatio: 0.40 },
   ],
 }
 
