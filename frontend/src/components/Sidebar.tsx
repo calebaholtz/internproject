@@ -36,7 +36,7 @@ export default function Sidebar() {
           <img src="/ats-logo.jpg" alt="Company logo" className="h-4 w-auto" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-white truncate">{appName}</h1>
+          <h1 className="text-lg font-semibold text-white leading-tight">{appName}</h1>
           <p className="text-xs text-gray-400">Real Projects. Real Missions. Real Impact.</p>
         </div>
       </div>
